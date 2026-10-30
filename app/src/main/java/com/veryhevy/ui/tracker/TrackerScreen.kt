@@ -65,6 +65,7 @@ import java.time.LocalTime
 fun TrackerScreen(vm: TrackerViewModel) {
     val workout by vm.workout.collectAsState()
     val unit by vm.unit.collectAsState()
+    val previousSets by vm.previousSets.collectAsState()
     val restTimer by vm.restTimer.collectAsState()
     var showPicker by remember { mutableStateOf(false) }
 
@@ -92,6 +93,7 @@ fun TrackerScreen(vm: TrackerViewModel) {
                         unit = unit,
                         restTimer = restTimer,
                         vm = vm,
+                        previous = previousSets[item.exerciseDetails.id],
                     )
                 }
                 item {
@@ -228,7 +230,11 @@ private fun ExerciseCard(
     unit: WeightUnit,
     restTimer: RestTimerState,
     vm: TrackerViewModel,
+    previous: PreviousSet?,
 ) {
+    androidx.compose.runtime.LaunchedEffect(item.exerciseDetails.id) {
+        vm.loadPrevious(item.exerciseDetails.id)
+    }
     var showMenu by remember { mutableStateOf(false) }
     var showNotes by remember { mutableStateOf(item.exercise.notes.isNotBlank()) }
     val sets = item.sets.sortedBy { it.setIndex }
@@ -319,6 +325,7 @@ private fun ExerciseCard(
                     set = set,
                     index = sets.indexOf(set) + 1,
                     unit = unit,
+                    previous = previous,
                     onWeightReps = { w2, r -> vm.updateSetValues(set, w2, r) },
                     onToggleDone = { vm.toggleSetDone(set, item.exercise.restSeconds) },
                     onToggleWarmup = { vm.toggleWarmup(set) },
@@ -352,6 +359,7 @@ private fun SetRow(
     set: SetEntity,
     index: Int,
     unit: WeightUnit,
+    previous: PreviousSet?,
     onWeightReps: (Double, Int) -> Unit,
     onToggleDone: () -> Unit,
     onToggleWarmup: () -> Unit,
@@ -379,7 +387,7 @@ private fun SetRow(
             }
             Text("$index", style = MaterialTheme.typography.bodyMedium)
         }
-        PreviousSetText(set.weightKg, set.reps, unit, Modifier.weight(1.2f))
+        PreviousSetText(previous, unit, Modifier.weight(1.2f))
         OutlinedTextField(
             value = weightText,
             onValueChange = {
@@ -450,8 +458,12 @@ private fun Box2(modifier: Modifier, content: @Composable () -> Unit) =
     androidx.compose.foundation.layout.Box(modifier) { content() }
 
 @Composable
-private fun PreviousSetText(weightKg: Double, reps: Int, unit: WeightUnit, modifier: Modifier) {
-    val text = if (weightKg <= 0.0 && reps <= 0) "—" else "${Format.weight(weightKg, unit)} × $reps"
+private fun PreviousSetText(previous: PreviousSet?, unit: WeightUnit, modifier: Modifier) {
+    val text = if (previous == null || (previous.weightKg <= 0.0 && previous.reps <= 0)) {
+        "—"
+    } else {
+        "${Format.weight(previous.weightKg, unit)} × ${previous.reps}"
+    }
     Text(text, modifier, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 

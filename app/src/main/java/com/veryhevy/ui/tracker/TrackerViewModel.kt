@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+data class PreviousSet(val weightKg: Double, val reps: Int)
+
 data class RestTimerState(
     val isActive: Boolean = false,
     val remainingSeconds: Int = 0,
@@ -48,12 +50,32 @@ class TrackerViewModel(app: Application) : AndroidViewModel(app) {
     private val _restTimer = MutableStateFlow(RestTimerState())
     val restTimer: StateFlow<RestTimerState> = _restTimer.asStateFlow()
 
+    private val _previousSets = MutableStateFlow<Map<String, PreviousSet>>(emptyMap())
+    val previousSets: StateFlow<Map<String, PreviousSet>> = _previousSets.asStateFlow()
+
     private var restJob: Job? = null
     private var defaultRestSeconds = 90
 
     init {
         viewModelScope.launch {
             settings.settings.collect { defaultRestSeconds = it.defaultRestSeconds }
+        }
+    }
+
+    /** The sets done for this exercise in the most recent prior workout. */
+    fun loadPrevious(exerciseId: String) {
+        if (_previousSets.value.containsKey(exerciseId)) return
+        viewModelScope.launch {
+            val currentWorkoutId = workout.value?.workout?.id
+            val history = workoutRepo.setHistoryForExercise(exerciseId)
+                .filter { it.workoutId != currentWorkoutId }
+            val best = history.maxByOrNull { it.workoutStartedAt } ?: run {
+                _previousSets.value = _previousSets.value + (exerciseId to PreviousSet(0.0, 0))
+                return@launch
+            }
+            val heaviest = history.filter { it.workoutId == best.workoutId }
+                .maxByOrNull { it.set.weightKg }
+            _previousSets.value = _previousSets.value + (exerciseId to PreviousSet(heaviest?.set?.weightKg ?: 0.0, heaviest?.set?.reps ?: 0))
         }
     }
 
