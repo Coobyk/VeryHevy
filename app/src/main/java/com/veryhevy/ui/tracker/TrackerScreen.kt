@@ -237,6 +237,7 @@ private fun ExerciseCard(
     }
     var showMenu by remember { mutableStateOf(false) }
     var showNotes by remember { mutableStateOf(item.exercise.notes.isNotBlank()) }
+    var showPlateCalc by remember { mutableStateOf(false) }
     val sets = item.sets.sortedBy { it.setIndex }
     val supersetLabel = item.exercise.supersetId?.let { "Superset ${'A' + it - 1}" }
 
@@ -293,6 +294,10 @@ private fun ExerciseCard(
                         },
                     )
                     DropdownMenuItem(
+                        text = { Text("Plate calculator") },
+                        onClick = { showMenu = false; showPlateCalc = true },
+                    )
+                    DropdownMenuItem(
                         text = { Text("Remove exercise") },
                         onClick = { showMenu = false; vm.removeExercise(item.exercise.orderIndex) },
                     )
@@ -331,6 +336,13 @@ private fun ExerciseCard(
                     onToggleWarmup = { vm.toggleWarmup(set) },
                     onSetRpe = { vm.setRpe(set, it) },
                     onDelete = { vm.deleteSet(set) },
+                )
+            }
+
+            if (showPlateCalc) {
+                PlateCalculatorDialog(
+                    unit = unit,
+                    onDismiss = { showPlateCalc = false },
                 )
             }
 
@@ -495,4 +507,50 @@ fun RestTimerBar(state: RestTimerState, onAddTime: () -> Unit, onSkip: () -> Uni
             )
         }
     }
+}
+
+
+@Composable
+private fun PlateCalculatorDialog(unit: WeightUnit, onDismiss: () -> Unit) {
+    var targetText by remember { mutableStateOf("60") }
+    val barKg = 20.0
+    val platesKg = listOf(25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25)
+
+    val displayTarget = targetText.toDoubleOrNull() ?: 0.0
+    val targetKg = Format.displayToKg(displayTarget, unit)
+    val plates = Calculators.platesFor(targetKg, barKg, platesKg)
+    val loadableKg = Calculators.closestLoadable(targetKg, barKg, platesKg)
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Plate calculator") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = targetText,
+                    onValueChange = { targetText = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = { Text("Target weight (${Format.unitLabel(unit)})") },
+                    singleLine = true,
+                )
+                Spacer(Modifier.height(12.dp))
+                if (targetKg <= barKg) {
+                    Text("Target must be above the empty ${Format.weight(barKg, unit)} ${Format.unitLabel(unit)} bar.")
+                } else {
+                    Text(
+                        "Per side: " + if (plates.isEmpty()) "nothing to add" else plates.joinToString(" + ") { Format.weight(it, unit) },
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    if (loadableKg < targetKg - 0.01) {
+                        Text(
+                            "Closest loadable: ${Format.weight(loadableKg, unit)} ${Format.unitLabel(unit)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+    )
 }
