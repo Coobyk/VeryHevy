@@ -152,7 +152,7 @@ private fun HistoryCard(entry: HistoryEntry, unit: WeightUnit, onClick: () -> Un
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Stat("Exercises", "${entry.exerciseCount}")
                 Stat("Sets", "${entry.setCount}")
-                Stat("Volume", "${Format.weight(entry.totalVolumeKg, unit)} ${Format.unitLabel(unit)}")
+                Stat("Volume", "${Format.volume(entry.totalVolumeKg, unit)} ${Format.unitLabel(unit)}")
                 Stat("Duration", Format.duration(w.workout.startedAt, w.workout.endedAt))
             }
         }

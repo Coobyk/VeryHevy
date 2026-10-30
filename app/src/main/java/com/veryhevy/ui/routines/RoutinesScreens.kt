@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -49,6 +50,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -317,9 +320,13 @@ private fun RoutineSetRow(
     onWarmup: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    var weightText by remember(set.id) { mutableStateOf(Format.weight(set.weightKg, unit)) }
+    var weightText by remember(set.id) { mutableStateOf(if (set.weightKg == 0.0) "" else Format.weight(set.weightKg, unit)) }
     var repsText by remember(set.id) { mutableStateOf(if (set.reps == 0) "" else set.reps.toString()) }
     var showRpeMenu by remember { mutableStateOf(false) }
+
+    val focusManager = LocalFocusManager.current
+    var weightWasFocused by remember { mutableStateOf(false) }
+    var repsWasFocused by remember { mutableStateOf(false) }
 
     fun commit() {
         val kg = Format.displayToKg(weightText.toDoubleOrNull() ?: 0.0, unit)

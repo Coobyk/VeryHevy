@@ -115,6 +115,9 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     suspend fun updateSet(set: SetEntity) = dao.upsertSet(set)
 
+    suspend fun setDone(id: Long, done: Boolean, completedAt: Long?) =
+        dao.setDone(id, done, completedAt)
+
     suspend fun deleteSet(set: SetEntity) {
         dao.deleteSet(set)
         val remaining = dao.setsFor(set.workoutExerciseId).sortedBy { it.setIndex }

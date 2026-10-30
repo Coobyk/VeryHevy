@@ -84,7 +84,7 @@ fun WorkoutDetailScreen(
                     Text(Format.dateTime(w.workout.startedAt), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         "Duration ${Format.duration(w.workout.startedAt, w.workout.endedAt)} · " +
-                            "Volume ${Format.weight(doneVolumeKg(w), unit)} ${Format.unitLabel(unit)}",
+                            "Volume ${Format.volume(doneVolumeKg(w), unit)} ${Format.unitLabel(unit)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

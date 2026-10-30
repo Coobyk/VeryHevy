@@ -171,8 +171,10 @@ class TrackerViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleSetDone(set: SetEntity, restSeconds: Int?) {
         viewModelScope.launch {
             val nowDone = !set.isDone
-            workoutRepo.updateSet(
-                set.copy(isDone = nowDone, completedAt = if (nowDone) System.currentTimeMillis() else null)
+            workoutRepo.setDone(
+                id = set.id,
+                done = nowDone,
+                completedAt = if (nowDone) System.currentTimeMillis() else null,
             )
             if (nowDone) startRest(restSeconds ?: defaultRestSeconds)
         }

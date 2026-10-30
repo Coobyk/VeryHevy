@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -50,6 +51,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -378,9 +381,13 @@ private fun SetRow(
     onSetRpe: (Double?) -> Unit,
     onDelete: () -> Unit,
 ) {
-    var weightText by remember(set.id) { mutableStateOf(Format.weight(set.weightKg, unit)) }
+    var weightText by remember(set.id) { mutableStateOf(if (set.weightKg == 0.0) "" else Format.weight(set.weightKg, unit)) }
     var repsText by remember(set.id) { mutableStateOf(if (set.reps == 0) "" else set.reps.toString()) }
     var showRpeMenu by remember { mutableStateOf(false) }
+
+    val focusManager = LocalFocusManager.current
+    var weightWasFocused by remember { mutableStateOf(false) }
+    var repsWasFocused by remember { mutableStateOf(false) }
 
     fun commit() {
         val displayWeight = weightText.toDoubleOrNull() ?: 0.0
@@ -402,24 +409,40 @@ private fun SetRow(
         PreviousSetText(previous, unit, Modifier.weight(1.2f))
         OutlinedTextField(
             value = weightText,
-            onValueChange = {
-                weightText = it.filter { c -> c.isDigit() || c == '.' }
-                commit()
-            },
-            modifier = Modifier.weight(1.4f).padding(end = 4.dp),
+            onValueChange = { weightText = it.filter { c -> c.isDigit() || c == '.' } },
+            modifier = Modifier
+                .weight(1.4f)
+                .padding(end = 4.dp)
+                .onFocusChanged { state ->
+                    if (state.isFocused) {
+                        weightWasFocused = true
+                    } else if (weightWasFocused) {
+                        weightWasFocused = false
+                        commit()
+                    }
+                },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
             textStyle = MaterialTheme.typography.bodyMedium,
         )
         OutlinedTextField(
             value = repsText,
-            onValueChange = {
-                repsText = it.filter { c -> c.isDigit() }
-                commit()
-            },
-            modifier = Modifier.weight(1.2f).padding(end = 4.dp),
+            onValueChange = { repsText = it.filter { c -> c.isDigit() } },
+            modifier = Modifier
+                .weight(1.2f)
+                .padding(end = 4.dp)
+                .onFocusChanged { state ->
+                    if (state.isFocused) {
+                        repsWasFocused = true
+                    } else if (repsWasFocused) {
+                        repsWasFocused = false
+                        commit()
+                    }
+                },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
             textStyle = MaterialTheme.typography.bodyMedium,
         )
         Box2(Modifier.weight(0.9f)) {
@@ -445,7 +468,10 @@ private fun SetRow(
                 }
             }
             FilledTonalIconButton(
-                onClick = onToggleDone,
+                onClick = {
+                    commit()
+                    onToggleDone()
+                },
                 modifier = Modifier.size(32.dp),
                 colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
                     containerColor = if (set.isDone) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,

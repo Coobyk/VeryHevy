@@ -20,6 +20,10 @@ object Format {
     fun weight(kg: Double, unit: WeightUnit): String =
         Calculators.formatWeight(weightKgToDisplay(kg, unit))
 
+    /** Aggregate volumes are shown as whole numbers in the display unit. */
+    fun volume(kg: Double, unit: WeightUnit): String =
+        kotlin.math.round(weightKgToDisplay(kg, unit)).toLong().toString()
+
     fun unitLabel(unit: WeightUnit): String = if (unit == WeightUnit.LB) "lb" else "kg"
 
     fun dateTime(millis: Long): String = dateTimeFormat.format(Date(millis))

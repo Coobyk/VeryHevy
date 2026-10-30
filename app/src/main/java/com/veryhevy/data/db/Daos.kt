@@ -104,6 +104,9 @@ interface WorkoutDao {
     @Upsert
     suspend fun upsertSet(set: SetEntity)
 
+    @Query("UPDATE workout_sets SET isDone = :done, completedAt = :completedAt WHERE id = :id")
+    suspend fun setDone(id: Long, done: Boolean, completedAt: Long?)
+
     @Delete
     suspend fun deleteSet(set: SetEntity)
 

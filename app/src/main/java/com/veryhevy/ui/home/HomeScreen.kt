@@ -163,7 +163,7 @@ private fun MuscleSplitCard(muscles: List<com.veryhevy.domain.MuscleVolume>, uni
                         )
                     }
                     Text(
-                        Format.weight(m.volumeKg, unit),
+                        Format.volume(m.volumeKg, unit),
                         Modifier.width(56.dp),
                         textAlign = androidx.compose.ui.text.style.TextAlign.End,
                         style = MaterialTheme.typography.bodySmall,
