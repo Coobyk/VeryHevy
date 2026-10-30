@@ -40,6 +40,8 @@ import com.veryhevy.ui.routines.RoutineEditScreen
 import com.veryhevy.ui.routines.RoutinesViewModel
 import com.veryhevy.ui.home.HomeScreen
 import com.veryhevy.ui.home.HomeViewModel
+import com.veryhevy.ui.settings.SettingsScreen
+import com.veryhevy.ui.settings.SettingsViewModel
 
 object Routes {
     const val HOME = "home"
@@ -157,7 +159,13 @@ fun AppRoot() {
                     },
                 )
             }
-            composable(Routes.SETTINGS) { Text("Settings") }
+            composable(Routes.SETTINGS) {
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
+                val vm: SettingsViewModel = viewModel(
+                    factory = viewModelFactory { initializer { SettingsViewModel(app) } }
+                )
+                SettingsScreen(vm)
+            }
         }
     }
 }
