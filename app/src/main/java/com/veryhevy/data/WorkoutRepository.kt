@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+
 package com.veryhevy.data
 
 import com.veryhevy.data.db.AppDatabase
@@ -6,12 +8,19 @@ import com.veryhevy.data.db.WorkoutEntity
 import com.veryhevy.data.db.WorkoutExerciseEntity
 import com.veryhevy.data.db.WorkoutWithExercises
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 
 class WorkoutRepository(private val db: AppDatabase) {
 
     private val dao get() = db.workoutDao()
 
     fun observeInProgress(): Flow<WorkoutEntity?> = dao.observeInProgress()
+
+    fun observeInProgressWithDetails(): Flow<WorkoutWithExercises?> =
+        dao.observeInProgress().flatMapLatest { w ->
+            if (w == null) flowOf(null) else dao.observeWithExercises(w.id)
+        }
     fun observeFinished(): Flow<List<WorkoutWithExercises>> = dao.observeFinished()
     fun observeById(id: Long): Flow<WorkoutWithExercises?> = dao.observeWithExercises(id)
     suspend fun byId(id: Long): WorkoutWithExercises? = dao.withExercises(id)

@@ -26,6 +26,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.veryhevy.VeryHevyApp
+import com.veryhevy.ui.tracker.TrackerScreen
+import com.veryhevy.ui.tracker.TrackerViewModel
 
 object Routes {
     const val HOME = "home"
@@ -91,7 +97,13 @@ fun AppRoot() {
         ) {
             composable(Routes.HOME) { Text("Home") }
             composable(Routes.HISTORY) { Text("History") }
-            composable(Routes.TRAINING) { Text("Training") }
+            composable(Routes.TRAINING) {
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
+                val vm: TrackerViewModel = viewModel(
+                    factory = viewModelFactory { initializer { TrackerViewModel(app) } }
+                )
+                TrackerScreen(vm)
+            }
             composable(Routes.ROUTINES) { Text("Routines") }
             composable(Routes.SETTINGS) { Text("Settings") }
         }
