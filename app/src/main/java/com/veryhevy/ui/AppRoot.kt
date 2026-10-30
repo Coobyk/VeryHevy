@@ -32,6 +32,9 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.veryhevy.VeryHevyApp
 import com.veryhevy.ui.tracker.TrackerScreen
 import com.veryhevy.ui.tracker.TrackerViewModel
+import com.veryhevy.ui.history.HistoryScreen
+import com.veryhevy.ui.history.HistoryViewModel
+import com.veryhevy.ui.history.WorkoutDetailScreen
 
 object Routes {
     const val HOME = "home"
@@ -96,7 +99,21 @@ fun AppRoot() {
             modifier = Modifier.padding(innerPadding),
         ) {
             composable(Routes.HOME) { Text("Home") }
-            composable(Routes.HISTORY) { Text("History") }
+            composable(Routes.HISTORY) {
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
+                val vm: HistoryViewModel = viewModel(
+                    factory = viewModelFactory { initializer { HistoryViewModel(app) } }
+                )
+                HistoryScreen(vm, onOpenWorkout = { navController.navigate("workout/$it") })
+            }
+            composable("workout/{id}") { entry ->
+                val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
+                val vm: HistoryViewModel = viewModel(
+                    factory = viewModelFactory { initializer { HistoryViewModel(app) } }
+                )
+                WorkoutDetailScreen(workoutId = id, vm = vm, onBack = { navController.popBackStack() })
+            }
             composable(Routes.TRAINING) {
                 val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
                 val vm: TrackerViewModel = viewModel(
