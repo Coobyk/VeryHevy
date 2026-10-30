@@ -86,6 +86,9 @@ interface WorkoutDao {
     @Delete
     suspend fun delete(workout: WorkoutEntity)
 
+    @Query("SELECT * FROM workout_exercises WHERE id = :id")
+    suspend fun exerciseById(id: Long): WorkoutExerciseEntity?
+
     @Insert
     suspend fun insertExercise(exercise: WorkoutExerciseEntity): Long
 
