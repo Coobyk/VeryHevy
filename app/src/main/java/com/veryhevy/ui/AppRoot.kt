@@ -38,6 +38,8 @@ import com.veryhevy.ui.history.WorkoutDetailScreen
 import com.veryhevy.ui.routines.RoutinesListScreen
 import com.veryhevy.ui.routines.RoutineEditScreen
 import com.veryhevy.ui.routines.RoutinesViewModel
+import com.veryhevy.ui.home.HomeScreen
+import com.veryhevy.ui.home.HomeViewModel
 
 object Routes {
     const val HOME = "home"
@@ -101,7 +103,13 @@ fun AppRoot() {
             startDestination = Routes.HOME,
             modifier = Modifier.padding(innerPadding),
         ) {
-            composable(Routes.HOME) { Text("Home") }
+            composable(Routes.HOME) {
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
+                val vm: HomeViewModel = viewModel(
+                    factory = viewModelFactory { initializer { HomeViewModel(app) } }
+                )
+                HomeScreen(vm)
+            }
             composable(Routes.HISTORY) {
                 val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
                 val vm: HistoryViewModel = viewModel(
