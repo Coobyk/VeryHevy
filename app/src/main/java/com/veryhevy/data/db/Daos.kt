@@ -146,7 +146,13 @@ interface RoutineDao {
     @Delete
     suspend fun deleteExercise(exercise: RoutineExerciseEntity)
 
-    @Insert
+    @Query("SELECT * FROM routine_exercises WHERE id = :id")
+    suspend fun exerciseById(id: Long): RoutineExerciseEntity?
+
+    @Query("SELECT * FROM routine_sets WHERE routineExerciseId = :routineExerciseId ORDER BY setIndex")
+    suspend fun setsFor(routineExerciseId: Long): List<RoutineSetEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSets(sets: List<RoutineSetEntity>)
 
     @Delete

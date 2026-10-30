@@ -35,6 +35,9 @@ import com.veryhevy.ui.tracker.TrackerViewModel
 import com.veryhevy.ui.history.HistoryScreen
 import com.veryhevy.ui.history.HistoryViewModel
 import com.veryhevy.ui.history.WorkoutDetailScreen
+import com.veryhevy.ui.routines.RoutinesListScreen
+import com.veryhevy.ui.routines.RoutineEditScreen
+import com.veryhevy.ui.routines.RoutinesViewModel
 
 object Routes {
     const val HOME = "home"
@@ -121,7 +124,31 @@ fun AppRoot() {
                 )
                 TrackerScreen(vm)
             }
-            composable(Routes.ROUTINES) { Text("Routines") }
+            composable(Routes.ROUTINES) {
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
+                val vm: RoutinesViewModel = viewModel(
+                    factory = viewModelFactory { initializer { RoutinesViewModel(app) } }
+                )
+                RoutinesListScreen(vm, onOpenRoutine = { navController.navigate("routine/$it") })
+            }
+            composable("routine/{id}") { entry ->
+                val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
+                val vm: RoutinesViewModel = viewModel(
+                    factory = viewModelFactory { initializer { RoutinesViewModel(app) } }
+                )
+                RoutineEditScreen(
+                    routineId = id,
+                    vm = vm,
+                    onBack = { navController.popBackStack() },
+                    onWorkoutStarted = {
+                        navController.navigate(Routes.TRAINING) {
+                            popUpTo(navController.graph.startDestinationId)
+                            launchSingleTop = true
+                        }
+                    },
+                )
+            }
             composable(Routes.SETTINGS) { Text("Settings") }
         }
     }
