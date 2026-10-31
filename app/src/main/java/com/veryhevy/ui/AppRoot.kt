@@ -1,5 +1,7 @@
 package com.veryhevy.ui
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FitnessCenter
@@ -21,6 +23,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -104,6 +110,14 @@ fun AppRoot() {
             navController = navController,
             startDestination = Routes.HOME,
             modifier = Modifier.padding(innerPadding),
+            enterTransition = {
+                fadeIn(tween(240)) + scaleIn(initialScale = 0.94f, animationSpec = tween(240))
+            },
+            exitTransition = { fadeOut(tween(180)) },
+            popEnterTransition = {
+                fadeIn(tween(240)) + scaleIn(initialScale = 0.94f, animationSpec = tween(240))
+            },
+            popExitTransition = { fadeOut(tween(180)) },
         ) {
             composable(Routes.HOME) {
                 val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
@@ -119,7 +133,15 @@ fun AppRoot() {
                 )
                 HistoryScreen(vm, onOpenWorkout = { navController.navigate("workout/$it") })
             }
-            composable("workout/{id}") { entry ->
+            composable(
+                "workout/{id}",
+                enterTransition = {
+                    slideInHorizontally(tween(320)) { it / 3 } + fadeIn(tween(320))
+                },
+                popExitTransition = {
+                    slideOutHorizontally(tween(300)) { it / 3 } + fadeOut(tween(300))
+                },
+            ) { entry ->
                 val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
                 val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
                 val vm: HistoryViewModel = viewModel(
@@ -141,7 +163,15 @@ fun AppRoot() {
                 )
                 RoutinesListScreen(vm, onOpenRoutine = { navController.navigate("routine/$it") })
             }
-            composable("routine/{id}") { entry ->
+            composable(
+                "routine/{id}",
+                enterTransition = {
+                    slideInHorizontally(tween(320)) { it / 3 } + fadeIn(tween(320))
+                },
+                popExitTransition = {
+                    slideOutHorizontally(tween(300)) { it / 3 } + fadeOut(tween(300))
+                },
+            ) { entry ->
                 val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
                 val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
                 val vm: RoutinesViewModel = viewModel(

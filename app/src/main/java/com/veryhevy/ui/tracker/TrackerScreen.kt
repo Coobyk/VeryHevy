@@ -1,5 +1,17 @@
 package com.veryhevy.ui.tracker
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -53,6 +65,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -92,6 +106,7 @@ fun TrackerScreen(vm: TrackerViewModel) {
             ) {
                 itemsIndexed(w.exercises.sortedBy { it.exercise.orderIndex }, key = { _, it -> it.exercise.id }) { _, item ->
                     ExerciseCard(
+                        modifier = Modifier.animateItem(),
                         item = item,
                         unit = unit,
                         restTimer = restTimer,
@@ -110,7 +125,15 @@ fun TrackerScreen(vm: TrackerViewModel) {
                     }
                 }
             }
-            if (restTimer.isActive) {
+            AnimatedVisibility(
+                visible = restTimer.isActive,
+                enter = slideInVertically(
+                    spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioLowBouncy),
+                ) { it } + fadeIn(),
+                exit = slideOutVertically(
+                    spring(stiffness = Spring.StiffnessMedium),
+                ) { it } + fadeOut(),
+            ) {
                 RestTimerBar(
                     state = restTimer,
                     onAddTime = { vm.addRestTime(15) },
@@ -229,6 +252,7 @@ private fun WorkoutHeader(
 
 @Composable
 private fun ExerciseCard(
+    modifier: Modifier = Modifier,
     item: WorkoutExerciseWithSets,
     unit: WeightUnit,
     restTimer: RestTimerState,
@@ -245,11 +269,17 @@ private fun ExerciseCard(
     val supersetLabel = item.exercise.supersetId?.let { "Superset ${'A' + it - 1}" }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
-        Column(Modifier.padding(12.dp)) {
+        Column(
+            Modifier
+                .padding(12.dp)
+                .animateContentSize(
+                    spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
+                ),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -467,14 +497,29 @@ private fun SetRow(
                     Icon(Icons.Filled.FitnessCenter, contentDescription = "Warmup", Modifier.size(16.dp))
                 }
             }
+            val checkScale by animateFloatAsState(
+                targetValue = if (set.isDone) 1f else 0.86f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                label = "check-scale",
+            )
+            val checkColor by animateColorAsState(
+                targetValue = if (set.isDone) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                animationSpec = tween(200),
+                label = "check-color",
+            )
             FilledTonalIconButton(
                 onClick = {
                     commit()
                     onToggleDone()
                 },
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier
+                    .size(32.dp)
+                    .graphicsLayer {
+                        scaleX = checkScale
+                        scaleY = checkScale
+                    },
                 colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
-                    containerColor = if (set.isDone) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                    containerColor = checkColor,
                 ),
             ) {
                 Icon(
@@ -515,12 +560,21 @@ fun RestTimerBar(state: RestTimerState, onAddTime: () -> Unit, onSkip: () -> Uni
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.Timer, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    Format.clock(state.remainingSeconds),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f),
-                )
+                AnimatedContent(
+                    targetState = state.remainingSeconds,
+                    transitionSpec = {
+                        (slideInVertically { it / 2 } + fadeIn()) togetherWith
+                            (slideOutVertically { -it / 2 } + fadeOut())
+                    },
+                    label = "rest-countdown",
+                ) { seconds ->
+                    Text(
+                        Format.clock(seconds),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                Spacer(Modifier.weight(1f))
                 TextButton(onClick = onAddTime) { Text("+15s") }
                 TextButton(onClick = onSkip) { Text("Skip") }
             }
