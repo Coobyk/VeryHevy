@@ -23,13 +23,18 @@ jobs:
       - name: Build and test
         run: ./gradlew build --console=plain
 
+      - name: Rename APKs
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk VeryHevy-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk VeryHevy-release.apk
+
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
           name: apks
           path: |
-            app/build/outputs/apk/debug/*.apk
-            app/build/outputs/apk/release/*.apk
+            VeryHevy-debug.apk
+            VeryHevy-release.apk
 
       - name: Create release
         uses: softprops/action-gh-release@v2
@@ -39,8 +44,8 @@ jobs:
           body: |
             Automated build from commit ${{ github.sha }}.
 
-            - `app-release.apk` — release build (debug-signed)
-            - `app-debug.apk` — debug build
+            - `VeryHevy-release.apk` — release build (debug-signed)
+            - `VeryHevy-debug.apk` — debug build
           files: |
-            app/build/outputs/apk/debug/*.apk
-            app/build/outputs/apk/release/*.apk
+            VeryHevy-debug.apk
+            VeryHevy-release.apk
