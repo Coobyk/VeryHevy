@@ -20,21 +20,30 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Decode signing keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/veryhevy.jks"
+
       - name: Build and test
         run: ./gradlew build --console=plain
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+          KEYSTORE_FILE: ${{ runner.temp }}/veryhevy.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Rename APKs
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk VeryHevy-debug.apk
-          cp app/build/outputs/apk/release/app-release.apk VeryHevy-release.apk
+          cp app/build/outputs/apk/debug/app-debug.apk "VeryHevy-${{ github.run_number }}-debug.apk"
+          cp app/build/outputs/apk/release/app-release.apk "VeryHevy-${{ github.run_number }}-release.apk"
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
           name: apks
           path: |
-            VeryHevy-debug.apk
-            VeryHevy-release.apk
+            VeryHevy-${{ github.run_number }}-debug.apk
+            VeryHevy-${{ github.run_number }}-release.apk
 
       - name: Create release
         uses: softprops/action-gh-release@v2
@@ -42,10 +51,12 @@ jobs:
           tag_name: build-${{ github.run_number }}
           name: VeryHevy build ${{ github.run_number }}
           body: |
-            Automated build from commit ${{ github.sha }}.
+            Automated build from commit ${{ github.sha }} (build ${{ github.run_number }}).
 
-            - `VeryHevy-release.apk` — release build (debug-signed)
-            - `VeryHevy-debug.apk` — debug build
+            - `VeryHevy-${{ github.run_number }}-release.apk` — release build
+            - `VeryHevy-${{ github.run_number }}-debug.apk` — debug build
+
+            All builds since build 16 are signed with the same key, so you can install any newer APK directly over an older one.
           files: |
-            VeryHevy-debug.apk
-            VeryHevy-release.apk
+            VeryHevy-${{ github.run_number }}-debug.apk
+            VeryHevy-${{ github.run_number }}-release.apk

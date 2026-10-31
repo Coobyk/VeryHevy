@@ -8,17 +8,38 @@ android {
     namespace = "com.veryhevy"
     compileSdk = 37
 
+    // CI sets BUILD_NUMBER (GitHub run number); local builds default to 1.
+    val buildNumber = (System.getenv("BUILD_NUMBER") ?: "1").toInt()
+
     defaultConfig {
         applicationId = "com.veryhevy"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = buildNumber
+        versionName = "0.1.0.$buildNumber"
+    }
+
+    // A persistent key shared between CI and local builds so APKs install over
+    // each other; falls back to the ephemeral debug key when unset.
+    val keystoreFile = System.getenv("KEYSTORE_FILE")
+    val hasSigningKey = keystoreFile != null && File(keystoreFile).exists()
+    if (hasSigningKey) {
+        signingConfigs {
+            create("shared") {
+                storeFile = File(keystoreFile!!)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
+            if (hasSigningKey) {
+                signingConfig = signingConfigs.getByName("shared")
+            }
         }
         release {
             isMinifyEnabled = true
@@ -27,8 +48,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // CI releases are signed with the debug key for now.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasSigningKey) {
+                signingConfigs.getByName("shared")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
     compileOptions {
