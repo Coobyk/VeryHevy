@@ -27,6 +27,12 @@ class CsvImporter(private val context: Context, private val db: com.veryhevy.dat
             fun col(name: String): Int =
                 header.indexOfFirst { it.trim().equals(name, ignoreCase = true) }
 
+            // Hevy's current export uses exercise_title/weight_kg/set_type;
+            // older exports use Exercise Name/Weight/Set Order.
+            if (col("exercise_title") >= 0) {
+                return@runCatching importV2(lines, ::col)
+            }
+
             val iDate = col("Date").also { if (it < 0) error("Missing 'Date' column — is this a Hevy export?") }
             val iName = col("Workout Name")
             val iExercise = col("Exercise Name").also { if (it < 0) error("Missing 'Exercise Name' column") }
@@ -93,6 +99,99 @@ class CsvImporter(private val context: Context, private val db: com.veryhevy.dat
             }
             imported
         }
+    }
+
+    /** Hevy's current export: title,start_time,end_time,description,exercise_title,
+     *  superset_id,exercise_notes,set_index,set_type,weight_kg,reps,distance_km,
+     *  duration_seconds,rpe. Weights are always kilograms regardless of [unit]. */
+    private suspend fun importV2(
+        lines: List<List<String>>,
+        col: (String) -> Int,
+    ): Int {
+        val iTitle = col("title")
+        val iStart = col("start_time")
+        val iEnd = col("end_time")
+        val iDesc = col("description")
+        val iExercise = col("exercise_title")
+        val iSuperset = col("superset_id")
+        val iExerciseNotes = col("exercise_notes")
+        val iSetIndex = col("set_index")
+        val iSetType = col("set_type")
+        val iWeight = col("weight_kg")
+        val iReps = col("reps")
+        val iRpe = col("rpe")
+
+        fun List<String>.cell(i: Int) = getOrNull(i)?.trim()?.ifBlank { null }
+
+        val workoutsByKey = LinkedHashMap<Pair<String, String>, MutableList<List<String>>>()
+        for (line in lines.drop(1)) {
+            val start = line.cell(iStart) ?: continue
+            workoutsByKey.getOrPut(start to line.cell(iTitle).orEmpty()) { mutableListOf() }.add(line)
+        }
+
+        var imported = 0
+        for ((key, rows) in workoutsByKey) {
+            val (startText, name) = key
+            val startedAt = CsvParser.parseDate(startText) ?: System.currentTimeMillis()
+            val endedAt = rows.firstNotNullOfOrNull { it.cell(iEnd) }
+                ?.let { CsvParser.parseDate(it) } ?: startedAt
+            val notes = rows.firstNotNullOfOrNull { it.cell(iDesc) }.orEmpty()
+            val workoutId = db.workoutDao().insert(
+                WorkoutEntity(
+                    name = name.ifBlank { "Imported workout" },
+                    startedAt = startedAt,
+                    endedAt = endedAt,
+                    notes = notes,
+                )
+            )
+
+            val supersetIds = rows.mapNotNull { it.cell(iSuperset) }.distinct()
+            var order = 0
+            for ((exerciseName, exerciseRows) in rows.groupBy { it.cell(iExercise).orEmpty() }) {
+                if (exerciseName.isBlank()) continue
+                val exerciseId = CsvParser.matchExercise(exerciseName, db.exerciseDao().all())
+                    ?: "custom-csv-${exerciseName.hashCode().toLong() and 0x7FFFFFFFL}"
+                if (exerciseId.startsWith("custom-csv-")) {
+                    db.exerciseDao().upsert(
+                        com.veryhevy.data.db.ExerciseEntity(
+                            id = exerciseId,
+                            name = exerciseName,
+                            muscleGroup = "unknown",
+                            equipment = "other",
+                            isCustom = true,
+                        )
+                    )
+                }
+                val superset = exerciseRows.firstNotNullOfOrNull { it.cell(iSuperset) }
+                    ?.let { supersetIds.indexOf(it) + 1 }
+                val weId = db.workoutDao().insertExercise(
+                    WorkoutExerciseEntity(
+                        workoutId = workoutId,
+                        exerciseId = exerciseId,
+                        orderIndex = order++,
+                        notes = exerciseRows.firstNotNullOfOrNull { it.cell(iExerciseNotes) }.orEmpty(),
+                        supersetId = superset,
+                    )
+                )
+                db.workoutDao().insertSets(
+                    exerciseRows.mapIndexedNotNull { index, row ->
+                        val reps = row.cell(iReps)?.toIntOrNull() ?: return@mapIndexedNotNull null
+                        SetEntity(
+                            workoutExerciseId = weId,
+                            setIndex = row.cell(iSetIndex)?.toIntOrNull() ?: index,
+                            weightKg = row.cell(iWeight)?.toDoubleOrNull() ?: 0.0,
+                            reps = reps,
+                            rpe = row.cell(iRpe)?.toDoubleOrNull(),
+                            isWarmup = row.cell(iSetType).equals("warmup", ignoreCase = true),
+                            isDone = true,
+                            completedAt = startedAt,
+                        )
+                    }
+                )
+            }
+            imported++
+        }
+        return imported
     }
 }
 
@@ -164,9 +263,10 @@ object CsvParser {
         return rows
     }
 
-    /** Parses Hevy's date format, e.g. "2024-03-05 18:32:00" or "2024-03-05" or "03/05/2024". */
+    /** Parses Hevy's date formats, e.g. "7 Nov 2026, 16:37" or "2024-03-05 18:32:00". */
     fun parseDate(value: String): Long? {
         val formats = listOf(
+            "d MMM yyyy, HH:mm", "d MMM yyyy, H:mm", "d MMM yyyy",
             "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm", "yyyy-MM-dd",
             "dd/MM/yyyy HH:mm:ss", "dd/MM/yyyy HH:mm", "dd/MM/yyyy",
             "MM/dd/yyyy HH:mm:ss", "MM/dd/yyyy HH:mm", "MM/dd/yyyy",
@@ -183,15 +283,33 @@ object CsvParser {
         return null
     }
 
-    /** Finds the closest matching library exercise by name (case/punctuation insensitive). */
+    private val equipmentWords = setOf(
+        "machine", "cable", "dumbbell", "barbell", "smith", "band", "kettlebell",
+    )
+    private val synonyms = mapOf("overhead" to "shoulder")
+
+    /** Significant words of an exercise name — drops equipment modifiers and stopwords. */
+    private fun contentTokens(s: String): Set<String> =
+        normalize(s).split(" ")
+            .filter { it.length > 1 }
+            .map { synonyms[it] ?: it }
+            .filter { it !in equipmentWords }
+            .toSet()
+
+    /** Finds the closest matching library exercise by name (case/punctuation insensitive).
+     *  A fuzzy match is only accepted when every content word of the input appears in the
+     *  candidate — otherwise the name becomes a custom exercise instead of being attached
+     *  to the wrong library entry (e.g. "Calf Press" → "Machine Chest Press"). */
     fun matchExercise(name: String, library: List<com.veryhevy.data.db.ExerciseEntity>): String? {
         val norm = normalize(name)
         if (norm.isEmpty()) return null
         library.firstOrNull { normalize(it.name) == norm }?.let { return it.id }
+        val queryTokens = contentTokens(name)
+        if (queryTokens.isEmpty()) return null
         return library
             .map { it to similarity(norm, normalize(it.name)) }
+            .filter { (e, score) -> score >= 0.6 && contentTokens(e.name).containsAll(queryTokens) }
             .maxByOrNull { it.second }
-            ?.takeIf { it.second >= 0.6 }
             ?.first?.id
     }
 

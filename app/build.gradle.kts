@@ -4,6 +4,12 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// Room entities and repositories produce immutable snapshots; marking the
+// view-layer types stable lets the Compose compiler skip unchanged items.
+composeCompiler {
+    stabilityConfigurationFiles.add(layout.projectDirectory.file("stability.conf"))
+}
+
 android {
     namespace = "com.veryhevy"
     compileSdk = 37

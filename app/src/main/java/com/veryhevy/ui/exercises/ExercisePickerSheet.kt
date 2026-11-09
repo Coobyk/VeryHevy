@@ -4,35 +4,35 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.veryhevy.data.db.ExerciseEntity
+import com.veryhevy.ui.LedgerCard
+import com.veryhevy.ui.VhDivider
+import com.veryhevy.ui.VhTag
 import kotlinx.coroutines.flow.Flow
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,20 +44,25 @@ fun ExercisePickerSheet(
     title: String = "Add exercise",
 ) {
     var query by remember { mutableStateOf("") }
-    val results by remember(query) { searchFlow(query) }.collectAsState(initial = emptyList())
+    val results by remember(query) { searchFlow(query) }.collectAsStateWithLifecycle(initialValue = emptyList())
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(horizontal = 16.dp)) {
+        Column(Modifier.padding(horizontal = 20.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(title, style = MaterialTheme.typography.titleLarge)
+                Text(title, style = MaterialTheme.typography.headlineSmall)
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close")
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "Close",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
+            Spacer(Modifier.height(4.dp))
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
@@ -65,19 +70,30 @@ fun ExercisePickerSheet(
                 placeholder = { Text("Search exercises") },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 singleLine = true,
+                shape = MaterialTheme.shapes.small,
             )
             LazyColumn(Modifier.padding(vertical = 8.dp)) {
                 items(results, key = { it.id }) { exercise ->
-                    ListItem(
-                        headlineContent = { Text(exercise.name, fontWeight = FontWeight.Medium) },
-                        supportingContent = {
-                            Text("${exercise.muscleGroup.replaceFirstChar { it.uppercase() }} · ${exercise.equipment.replace('_', ' ')}")
-                        },
-                        modifier = Modifier.clickable {
-                            onPick(exercise)
-                            onDismiss()
-                        },
-                    )
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onPick(exercise)
+                                onDismiss()
+                            },
+                    ) {
+                        VhDivider()
+                        Column(Modifier.padding(vertical = 16.dp)) {
+                            Text(exercise.name, style = MaterialTheme.typography.titleSmall)
+                            Row(
+                                Modifier.padding(top = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                VhTag(exercise.muscleGroup)
+                                VhTag(exercise.equipment.replace('_', ' '))
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -86,17 +102,16 @@ fun ExercisePickerSheet(
 
 @Composable
 fun ExerciseLibraryCard(exercise: ExerciseEntity) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(exercise.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(
-                "${exercise.muscleGroup.replaceFirstChar { it.uppercase() }} · ${exercise.equipment.replace('_', ' ')}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+    LedgerCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp)) {
+            Text(exercise.name, style = MaterialTheme.typography.titleMedium)
+            Row(
+                Modifier.padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                VhTag(exercise.muscleGroup)
+                VhTag(exercise.equipment.replace('_', ' '))
+            }
             if (exercise.instructions.isNotBlank()) {
                 Text(
                     exercise.instructions,

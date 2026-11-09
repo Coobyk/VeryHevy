@@ -1,9 +1,12 @@
 package com.veryhevy.domain
 
+import androidx.compose.runtime.Immutable
+
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
+@Immutable
 data class SetRecord(
     val exerciseId: String,
     val muscleGroup: String,
@@ -14,10 +17,13 @@ data class SetRecord(
     val workoutId: Long,
 )
 
+@Immutable
 data class WeeklyVolume(val weekStart: LocalDate, val volumeKg: Double, val workoutCount: Int)
 
+@Immutable
 data class MuscleVolume(val muscleGroup: String, val volumeKg: Double)
 
+@Immutable
 data class PersonalRecord(
     val exerciseId: String,
     val bestOneRepMaxKg: Double,
@@ -26,6 +32,7 @@ data class PersonalRecord(
     val achievedAt: Long,
 )
 
+@Immutable
 data class WorkoutTotals(
     val workoutId: Long,
     val startedAt: Long,

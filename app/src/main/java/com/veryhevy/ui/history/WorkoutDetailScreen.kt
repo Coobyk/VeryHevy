@@ -2,10 +2,12 @@ package com.veryhevy.ui.history
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,10 +15,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -25,7 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +36,10 @@ import androidx.compose.ui.unit.dp
 import com.veryhevy.data.WeightUnit
 import com.veryhevy.data.db.WorkoutWithExercises
 import com.veryhevy.ui.Format
+import com.veryhevy.ui.LedgerCard
+import com.veryhevy.ui.VhDivider
+import com.veryhevy.ui.VhTag
+import com.veryhevy.ui.theme.numeric
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,7 +48,7 @@ fun WorkoutDetailScreen(
     vm: HistoryViewModel,
     onBack: () -> Unit,
 ) {
-    val unit by vm.unit.collectAsState()
+    val unit by vm.unit.collectAsStateWithLifecycle()
     var workout by remember { mutableStateOf<WorkoutWithExercises?>(null) }
 
     LaunchedEffect(workoutId) {
@@ -67,7 +70,11 @@ fun WorkoutDetailScreen(
                         vm.deleteWorkout(workoutId)
                         onBack()
                     }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = "Delete",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 },
             )
@@ -76,54 +83,61 @@ fun WorkoutDetailScreen(
         if (w == null) return@Scaffold
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+            contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                Column {
-                    Text(Format.dateTime(w.workout.startedAt), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        "Duration ${Format.duration(w.workout.startedAt, w.workout.endedAt)} · " +
-                            "Volume ${Format.volume(doneVolumeKg(w), unit)} ${Format.unitLabel(unit)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                ) {
+                    DetailStat(Format.dateTime(w.workout.startedAt), "date")
+                    DetailStat(Format.duration(w.workout.startedAt, w.workout.endedAt), "duration")
+                    DetailStat("${Format.volume(doneVolumeKg(w), unit)} ${Format.unitLabel(unit)}", "volume")
                 }
+                Spacer(Modifier.height(4.dp))
             }
             itemsIndexed(w.exercises.sortedBy { it.exercise.orderIndex }, key = { _, it -> it.exercise.id }) { _, item ->
-                Card(
-                    Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                ) {
-                    Column(Modifier.padding(16.dp)) {
+                LedgerCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(18.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 item.exerciseDetails.name,
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.weight(1f),
                             )
                             item.exercise.supersetId?.let {
-                                Text("Superset ${'A' + it - 1}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                                VhTag("Superset ${'A' + it - 1}", accent = true)
                             }
                         }
+                        Spacer(Modifier.height(6.dp))
                         item.sets.sortedBy { it.setIndex }.forEachIndexed { i, set ->
-                            HorizontalDivider(Modifier.padding(vertical = 6.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                            Row {
+                            VhDivider()
+                            Row(Modifier.padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                                if (set.isWarmup) {
+                                    VhTag("W", Modifier.width(32.dp))
+                                } else {
+                                    Text(
+                                        "${i + 1}",
+                                        Modifier.width(32.dp),
+                                        style = MaterialTheme.typography.bodySmall.numeric(),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                                 Text(
-                                    if (set.isWarmup) "W${i + 1}" else "${i + 1}",
-                                    Modifier.width(32.dp),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Text(
-                                    "${Format.weight(set.weightKg, unit)} ${Format.unitLabel(unit)} × ${set.reps}" +
-                                        (set.rpe?.let { " · RPE ${"%.1f".format(it)}" } ?: ""),
+                                    "${Format.weight(set.weightKg, unit)} ${Format.unitLabel(unit)} × ${set.reps}",
                                     Modifier.weight(1f),
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = MaterialTheme.typography.bodyMedium.numeric(),
                                     fontWeight = if (set.isDone) FontWeight.Medium else FontWeight.Normal,
                                     color = if (set.isDone) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                                set.rpe?.let {
+                                    Text(
+                                        "RPE ${"%.1f".format(it)}",
+                                        style = MaterialTheme.typography.bodySmall.numeric(),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
                         }
                         if (item.exercise.notes.isNotBlank()) {
@@ -139,11 +153,8 @@ fun WorkoutDetailScreen(
             }
             if (w.workout.notes.isNotBlank()) {
                 item {
-                    Card(
-                        Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    ) {
-                        Column(Modifier.padding(16.dp)) {
+                    LedgerCard(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(18.dp)) {
                             Text("Workout notes", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(w.workout.notes, style = MaterialTheme.typography.bodyMedium)
                         }
@@ -151,6 +162,18 @@ fun WorkoutDetailScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DetailStat(value: String, label: String) {
+    Column {
+        Text(value, style = MaterialTheme.typography.bodyMedium.numeric(), fontWeight = FontWeight.Medium)
+        Text(
+            label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

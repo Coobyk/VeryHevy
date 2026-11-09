@@ -4,17 +4,19 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.EventNote
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -68,7 +70,7 @@ private val topLevelDestinations = listOf(
     TopLevelDestination(Routes.HOME, "Home", Icons.Filled.Home, Icons.Outlined.Home),
     TopLevelDestination(Routes.HISTORY, "History", Icons.Filled.History, Icons.Outlined.History),
     TopLevelDestination(Routes.TRAINING, "Training", Icons.Filled.FitnessCenter, Icons.Outlined.FitnessCenter),
-    TopLevelDestination(Routes.ROUTINES, "Routines", Icons.Filled.Star, Icons.Outlined.Star),
+    TopLevelDestination(Routes.ROUTINES, "Routines", Icons.Filled.EventNote, Icons.Outlined.EventNote),
     TopLevelDestination(Routes.SETTINGS, "Settings", Icons.Filled.Settings, Icons.Outlined.Settings),
 )
 
@@ -78,9 +80,23 @@ fun AppRoot() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
+    // Activity-scoped ViewModels — created once, kept alive across tab switches.
+    // (Popping with saveState destroys per-destination ViewModels, which caused
+    // a full re-query + recomposition on every navigation.)
+    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
+    val homeVm: HomeViewModel = viewModel(factory = viewModelFactory { initializer { HomeViewModel(app) } })
+    val historyVm: HistoryViewModel = viewModel(factory = viewModelFactory { initializer { HistoryViewModel(app) } })
+    val trackerVm: TrackerViewModel = viewModel(factory = viewModelFactory { initializer { TrackerViewModel(app) } })
+    val routinesVm: RoutinesViewModel = viewModel(factory = viewModelFactory { initializer { RoutinesViewModel(app) } })
+    val settingsVm: SettingsViewModel = viewModel(factory = viewModelFactory { initializer { SettingsViewModel(app) } })
+
     Scaffold(
         bottomBar = {
-            NavigationBar {
+            Column {
+                VhDivider()
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ) {
                 topLevelDestinations.forEach { destination ->
                     val selected = currentRoute == destination.route
                     NavigationBarItem(
@@ -103,6 +119,7 @@ fun AppRoot() {
                         label = { Text(destination.label) },
                     )
                 }
+                }
             }
         },
     ) { innerPadding ->
@@ -111,75 +128,51 @@ fun AppRoot() {
             startDestination = Routes.HOME,
             modifier = Modifier.padding(innerPadding),
             enterTransition = {
-                fadeIn(tween(240)) + scaleIn(initialScale = 0.94f, animationSpec = tween(240))
+                fadeIn(tween(160)) + scaleIn(initialScale = 0.96f, animationSpec = tween(160))
             },
-            exitTransition = { fadeOut(tween(180)) },
+            exitTransition = { fadeOut(tween(120)) },
             popEnterTransition = {
-                fadeIn(tween(240)) + scaleIn(initialScale = 0.94f, animationSpec = tween(240))
+                fadeIn(tween(160)) + scaleIn(initialScale = 0.96f, animationSpec = tween(160))
             },
-            popExitTransition = { fadeOut(tween(180)) },
+            popExitTransition = { fadeOut(tween(120)) },
         ) {
             composable(Routes.HOME) {
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
-                val vm: HomeViewModel = viewModel(
-                    factory = viewModelFactory { initializer { HomeViewModel(app) } }
-                )
-                HomeScreen(vm)
+                HomeScreen(homeVm)
             }
             composable(Routes.HISTORY) {
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
-                val vm: HistoryViewModel = viewModel(
-                    factory = viewModelFactory { initializer { HistoryViewModel(app) } }
-                )
-                HistoryScreen(vm, onOpenWorkout = { navController.navigate("workout/$it") })
+                HistoryScreen(historyVm, onOpenWorkout = { navController.navigate("workout/$it") })
             }
             composable(
                 "workout/{id}",
                 enterTransition = {
-                    slideInHorizontally(tween(320)) { it / 3 } + fadeIn(tween(320))
+                    slideInHorizontally(tween(250)) { it / 4 } + fadeIn(tween(250))
                 },
                 popExitTransition = {
-                    slideOutHorizontally(tween(300)) { it / 3 } + fadeOut(tween(300))
+                    slideOutHorizontally(tween(220)) { it / 4 } + fadeOut(tween(220))
                 },
             ) { entry ->
                 val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
-                val vm: HistoryViewModel = viewModel(
-                    factory = viewModelFactory { initializer { HistoryViewModel(app) } }
-                )
-                WorkoutDetailScreen(workoutId = id, vm = vm, onBack = { navController.popBackStack() })
+                WorkoutDetailScreen(workoutId = id, vm = historyVm, onBack = { navController.popBackStack() })
             }
             composable(Routes.TRAINING) {
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
-                val vm: TrackerViewModel = viewModel(
-                    factory = viewModelFactory { initializer { TrackerViewModel(app) } }
-                )
-                TrackerScreen(vm)
+                TrackerScreen(trackerVm)
             }
             composable(Routes.ROUTINES) {
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
-                val vm: RoutinesViewModel = viewModel(
-                    factory = viewModelFactory { initializer { RoutinesViewModel(app) } }
-                )
-                RoutinesListScreen(vm, onOpenRoutine = { navController.navigate("routine/$it") })
+                RoutinesListScreen(routinesVm, onOpenRoutine = { navController.navigate("routine/$it") })
             }
             composable(
                 "routine/{id}",
                 enterTransition = {
-                    slideInHorizontally(tween(320)) { it / 3 } + fadeIn(tween(320))
+                    slideInHorizontally(tween(250)) { it / 4 } + fadeIn(tween(250))
                 },
                 popExitTransition = {
-                    slideOutHorizontally(tween(300)) { it / 3 } + fadeOut(tween(300))
+                    slideOutHorizontally(tween(220)) { it / 4 } + fadeOut(tween(220))
                 },
             ) { entry ->
                 val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
-                val vm: RoutinesViewModel = viewModel(
-                    factory = viewModelFactory { initializer { RoutinesViewModel(app) } }
-                )
                 RoutineEditScreen(
                     routineId = id,
-                    vm = vm,
+                    vm = routinesVm,
                     onBack = { navController.popBackStack() },
                     onWorkoutStarted = {
                         navController.navigate(Routes.TRAINING) {
@@ -190,11 +183,7 @@ fun AppRoot() {
                 )
             }
             composable(Routes.SETTINGS) {
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as VeryHevyApp
-                val vm: SettingsViewModel = viewModel(
-                    factory = viewModelFactory { initializer { SettingsViewModel(app) } }
-                )
-                SettingsScreen(vm)
+                SettingsScreen(settingsVm)
             }
         }
     }

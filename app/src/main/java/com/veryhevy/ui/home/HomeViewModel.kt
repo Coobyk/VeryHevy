@@ -34,7 +34,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         .map { it.unit }
         .stateIn(viewModelScope, SharingStarted.Eagerly, WeightUnit.KG)
 
-    private val setRecords = workoutRepo.observeFinished()
+    // Shared upstream: the finished-workout graph is flattened once, and the
+    // five analytics below map that single StateFlow instead of each
+    // re-running the same Room subscription and flatten.
+    private val setRecords: StateFlow<List<SetRecord>> = workoutRepo.observeFinished()
         .map { workouts ->
             workouts.flatMap { w ->
                 w.exercises.flatMap { we ->
@@ -52,6 +55,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
         }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val weeklyVolume: StateFlow<List<WeeklyVolume>> = setRecords
         .map { Analytics.weeklyVolume(it) }

@@ -2,37 +2,37 @@ package com.veryhevy.ui.routines
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,26 +43,30 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.veryhevy.data.WeightUnit
 import com.veryhevy.data.db.RoutineSetEntity
+import com.veryhevy.ui.EmptyState
 import com.veryhevy.ui.Format
+import com.veryhevy.ui.LedgerCard
+import com.veryhevy.ui.SetField
+import com.veryhevy.ui.VhDivider
+import com.veryhevy.ui.VhTag
 import com.veryhevy.ui.exercises.ExercisePickerSheet
+import com.veryhevy.ui.theme.numeric
 
 @Composable
 fun RoutinesListScreen(vm: RoutinesViewModel, onOpenRoutine: (Long) -> Unit) {
-    val routines by vm.routines.collectAsState()
+    val routines by vm.routines.collectAsStateWithLifecycle()
     var showCreate by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
 
@@ -75,46 +79,49 @@ fun RoutinesListScreen(vm: RoutinesViewModel, onOpenRoutine: (Long) -> Unit) {
             }
         },
     ) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            if (routines.isEmpty()) {
-                item {
-                    Text(
-                        "No routines yet. Create one to plan your workouts ahead of time.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            items(routines, key = { it.routine.id }) { r ->
-                Card(
-                    Modifier.fillMaxWidth().clickable { onOpenRoutine(r.routine.id) },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                ) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(r.routine.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                "${r.exercises.size} exercises · updated ${Format.date(r.routine.updatedAt)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        IconButton(onClick = { vm.duplicateRoutine(r.routine.id) }) {
-                            Icon(Icons.Filled.ContentCopy, contentDescription = "Duplicate")
+        if (routines.isEmpty()) {
+            EmptyState(
+                icon = Icons.Filled.EventNote,
+                title = "No routines yet",
+                body = "Create a routine to plan your workouts ahead of time and start them with one tap.",
+                modifier = Modifier.fillMaxSize().padding(padding),
+            )
+        } else {
+            LazyColumn(
+                Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(routines, key = { it.routine.id }) { r ->
+                    LedgerCard(Modifier.fillMaxWidth().clickable { onOpenRoutine(r.routine.id) }) {
+                        Row(Modifier.padding(horizontal = 16.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(r.routine.name, style = MaterialTheme.typography.titleMedium)
+                                Spacer(Modifier.height(3.dp))
+                                Text(
+                                    "${r.exercises.size} exercises · updated ${Format.date(r.routine.updatedAt)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            IconButton(onClick = { vm.duplicateRoutine(r.routine.id) }) {
+                                Icon(
+                                    Icons.Filled.ContentCopy,
+                                    contentDescription = "Duplicate",
+                                    Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 }
+                item { Spacer(Modifier.height(80.dp)) }
             }
         }
     }
 
     if (showCreate) {
-        androidx.compose.material3.AlertDialog(
+        AlertDialog(
             onDismissRequest = { showCreate = false },
             title = { Text("New routine") },
             text = {
@@ -144,8 +151,8 @@ fun RoutineEditScreen(
     onBack: () -> Unit,
     onWorkoutStarted: (Long) -> Unit,
 ) {
-    val routine by vm.current.collectAsState()
-    val unit by vm.unit.collectAsState()
+    val routine by vm.current.collectAsStateWithLifecycle()
+    val unit by vm.unit.collectAsStateWithLifecycle()
     var showPicker by remember { mutableStateOf(false) }
     var editingName by remember { mutableStateOf(false) }
 
@@ -184,7 +191,7 @@ fun RoutineEditScreen(
     ) { padding ->
         if (r == null) return@Scaffold
         Column(Modifier.fillMaxSize().padding(padding)) {
-            Row(Modifier.padding(horizontal = 16.dp)) {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Button(
                     onClick = { vm.startWorkout(routineId, onWorkoutStarted) },
                     modifier = Modifier.weight(1f),
@@ -196,11 +203,11 @@ fun RoutineEditScreen(
             }
             LazyColumn(
                 Modifier.weight(1f),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(r.exercises.sortedBy { it.exercise.orderIndex }, key = { it.exercise.id }) { item ->
-                    RoutineExerciseCard(
+                    RoutineExerciseBlock(
                         item = item,
                         unit = unit,
                         vm = vm,
@@ -227,69 +234,73 @@ fun RoutineEditScreen(
 }
 
 @Composable
-private fun RoutineExerciseCard(
+private fun RoutineExerciseBlock(
     item: com.veryhevy.data.db.RoutineExerciseWithSets,
     unit: WeightUnit,
     vm: RoutinesViewModel,
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    val sets = item.sets.sortedBy { it.setIndex }
+    val sets = remember(item.sets) { item.sets.sortedBy { it.setIndex } }
 
-    Card(
-        Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-    ) {
-        Column(Modifier.padding(12.dp)) {
+    LedgerCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(item.exerciseDetails.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "${item.exerciseDetails.muscleGroup.replaceFirstChar { it.uppercase() }} · ${item.exerciseDetails.equipment.replace('_', ' ')}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Text(item.exerciseDetails.name, style = MaterialTheme.typography.titleMedium)
+                    Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        VhTag(item.exerciseDetails.muscleGroup)
+                        VhTag(item.exerciseDetails.equipment.replace('_', ' '))
+                    }
                 }
-                IconButton(onClick = { showMenu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Options") }
-                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Move up") },
-                        onClick = { showMenu = false; vm.moveExercise(item.exercise.routineId, item.exercise.orderIndex, -1) },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Move down") },
-                        onClick = { showMenu = false; vm.moveExercise(item.exercise.routineId, item.exercise.orderIndex, 1) },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Rest ${item.exercise.restSeconds ?: 90}s") },
-                        onClick = {
-                            showMenu = false
-                            vm.updateRestSeconds(
-                                item.exercise.id,
-                                item.exercise.routineId,
-                                (item.exercise.restSeconds ?: 90).let { if (it >= 240) 90 else it + 30 },
-                            )
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Remove exercise") },
-                        onClick = { showMenu = false; vm.removeExercise(item.exercise.routineId, item.exercise.orderIndex) },
-                    )
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(
+                            Icons.Filled.MoreVert,
+                            contentDescription = "Options",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Move up") },
+                            onClick = { showMenu = false; vm.moveExercise(item.exercise.routineId, item.exercise.orderIndex, -1) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Move down") },
+                            onClick = { showMenu = false; vm.moveExercise(item.exercise.routineId, item.exercise.orderIndex, 1) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Rest ${item.exercise.restSeconds ?: 90}s") },
+                            onClick = {
+                                showMenu = false
+                                vm.updateRestSeconds(
+                                    item.exercise.id,
+                                    item.exercise.routineId,
+                                    (item.exercise.restSeconds ?: 90).let { if (it >= 240) 90 else it + 30 },
+                                )
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Remove exercise") },
+                            onClick = { showMenu = false; vm.removeExercise(item.exercise.routineId, item.exercise.orderIndex) },
+                        )
+                    }
                 }
             }
 
-            Row(Modifier.padding(vertical = 4.dp)) {
-                Text("SET", Modifier.width(36.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("KG" + if (unit == WeightUnit.LB) "/LB" else "", Modifier.weight(1.4f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("REPS", Modifier.weight(1.2f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("RPE", Modifier.weight(0.9f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("", Modifier.weight(0.7f))
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.padding(bottom = 6.dp)) {
+                RoutineTableLabel("SET", Modifier.width(32.dp))
+                RoutineTableLabel(Format.unitLabel(unit).uppercase(), Modifier.weight(1.3f))
+                RoutineTableLabel("REPS", Modifier.weight(1.1f))
+                RoutineTableLabel("RPE", Modifier.weight(0.9f))
+                Spacer(Modifier.width(46.dp))
             }
 
-            sets.forEach { set ->
+            sets.forEachIndexed { i, set ->
                 RoutineSetRow(
                     set = set,
-                    index = sets.indexOf(set) + 1,
+                    index = i + 1,
                     unit = unit,
                     onWeightReps = { w, r -> vm.updateSetValues(set, w, r) },
                     onRpe = { vm.setRpe(set, it) },
@@ -300,7 +311,7 @@ private fun RoutineExerciseCard(
 
             FilledTonalButton(
                 onClick = { vm.addSet(item.exercise.id, sets.lastOrNull()) },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
             ) {
                 Icon(Icons.Filled.Add, contentDescription = null, Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
@@ -308,6 +319,17 @@ private fun RoutineExerciseCard(
             }
         }
     }
+}
+
+@Composable
+private fun RoutineTableLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        modifier,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+    )
 }
 
 @Composable
@@ -324,52 +346,73 @@ private fun RoutineSetRow(
     var repsText by remember(set.id) { mutableStateOf(if (set.reps == 0) "" else set.reps.toString()) }
     var showRpeMenu by remember { mutableStateOf(false) }
 
-    val focusManager = LocalFocusManager.current
-    var weightWasFocused by remember { mutableStateOf(false) }
-    var repsWasFocused by remember { mutableStateOf(false) }
-
     fun commit() {
         val kg = Format.displayToKg(weightText.toDoubleOrNull() ?: 0.0, unit)
         val reps = repsText.toIntOrNull() ?: 0
         if (kg != set.weightKg || reps != set.reps) onWeightReps(kg, reps)
     }
 
-    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(if (set.isWarmup) "W$index" else "$index", Modifier.width(36.dp), style = MaterialTheme.typography.bodyMedium)
-        OutlinedTextField(
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(32.dp), contentAlignment = Alignment.CenterStart) {
+            if (set.isWarmup) {
+                VhTag("W")
+            } else {
+                Text(
+                    "$index",
+                    style = MaterialTheme.typography.bodyMedium.numeric(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        SetField(
             value = weightText,
             onValueChange = { weightText = it.filter { c -> c.isDigit() || c == '.' }; commit() },
-            modifier = Modifier.weight(1.4f).padding(end = 4.dp),
-            singleLine = true,
+            onCommit = ::commit,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            textStyle = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1.3f).padding(horizontal = 4.dp),
         )
-        OutlinedTextField(
+        SetField(
             value = repsText,
             onValueChange = { repsText = it.filter { c -> c.isDigit() }; commit() },
-            modifier = Modifier.weight(1.2f).padding(end = 4.dp),
-            singleLine = true,
+            onCommit = ::commit,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            textStyle = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1.1f).padding(horizontal = 4.dp),
         )
-        androidx.compose.foundation.layout.Box(Modifier.weight(0.9f)) {
-            TextButton(onClick = { showRpeMenu = true }) {
-                Text(set.rpe?.let { "%.1f".format(it) } ?: "-", style = MaterialTheme.typography.bodyMedium)
+        Box(Modifier.weight(0.9f), contentAlignment = Alignment.Center) {
+            TextButton(onClick = { showRpeMenu = true }, contentPadding = PaddingValues(0.dp)) {
+                Text(
+                    set.rpe?.let { "%.1f".format(it) } ?: "-",
+                    style = MaterialTheme.typography.bodyMedium.numeric(),
+                    color = if (set.rpe != null) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             DropdownMenu(expanded = showRpeMenu, onDismissRequest = { showRpeMenu = false }) {
                 listOf(null, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0).forEach { rpe ->
                     DropdownMenuItem(
-                        text = { Text(rpe?.let { "%.1f".format(it) } ?: "None") },
+                        text = { Text(rpe?.let { "%.1f".format(it) } ?: "None", style = MaterialTheme.typography.bodyMedium.numeric()) },
                         onClick = { showRpeMenu = false; onRpe(rpe) },
                     )
                 }
             }
         }
-        IconButton(onClick = onWarmup, Modifier.size(24.dp)) {
-            Icon(Icons.Filled.Edit, contentDescription = "Toggle warmup", Modifier.size(14.dp))
-        }
-        IconButton(onClick = onDelete, Modifier.size(24.dp)) {
-            Icon(Icons.Filled.Close, contentDescription = "Delete set", Modifier.size(14.dp))
+        Row(Modifier.width(46.dp), horizontalArrangement = Arrangement.End) {
+            IconButton(onClick = onWarmup, Modifier.size(24.dp)) {
+                Icon(
+                    Icons.Filled.Edit,
+                    contentDescription = "Toggle warmup",
+                    Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = onDelete, Modifier.size(22.dp)) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = "Delete set",
+                    Modifier.size(13.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

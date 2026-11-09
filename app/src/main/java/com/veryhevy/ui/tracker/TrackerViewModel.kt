@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.veryhevy.VeryHevyApp
@@ -25,8 +26,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+@Immutable
 data class PreviousSet(val weightKg: Double, val reps: Int)
 
+@Immutable
 data class RestTimerState(
     val isActive: Boolean = false,
     val remainingSeconds: Int = 0,

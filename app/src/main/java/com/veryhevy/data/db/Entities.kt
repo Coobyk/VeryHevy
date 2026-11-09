@@ -1,11 +1,14 @@
 package com.veryhevy.data.db
 
+import androidx.compose.runtime.Immutable
+
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "exercises")
+@Immutable
 data class ExerciseEntity(
     @PrimaryKey val id: String,
     val name: String,
@@ -17,6 +20,7 @@ data class ExerciseEntity(
 )
 
 @Entity(tableName = "workouts")
+@Immutable
 data class WorkoutEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
@@ -37,6 +41,7 @@ data class WorkoutEntity(
     ],
     indices = [Index("workoutId"), Index("exerciseId")],
 )
+@Immutable
 data class WorkoutExerciseEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val workoutId: Long,
@@ -60,6 +65,7 @@ data class WorkoutExerciseEntity(
     ],
     indices = [Index("workoutExerciseId")],
 )
+@Immutable
 data class SetEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val workoutExerciseId: Long,
@@ -74,6 +80,7 @@ data class SetEntity(
 )
 
 @Entity(tableName = "routines")
+@Immutable
 data class RoutineEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
@@ -94,6 +101,7 @@ data class RoutineEntity(
     ],
     indices = [Index("routineId"), Index("exerciseId")],
 )
+@Immutable
 data class RoutineExerciseEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val routineId: Long,
@@ -116,6 +124,7 @@ data class RoutineExerciseEntity(
     ],
     indices = [Index("routineExerciseId")],
 )
+@Immutable
 data class RoutineSetEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val routineExerciseId: Long,
@@ -127,6 +136,7 @@ data class RoutineSetEntity(
 )
 
 @Entity(tableName = "measurements")
+@Immutable
 data class MeasurementEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     /** Days since epoch. */
