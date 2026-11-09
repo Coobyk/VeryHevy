@@ -1,40 +1,49 @@
 package com.veryhevy.ui
 
 import com.veryhevy.data.WeightUnit
-import com.veryhevy.domain.Calculators
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.floor
+import kotlin.math.round
 
 object Format {
     private val dateTimeFormat = SimpleDateFormat("EEE, MMM d · HH:mm", Locale.getDefault())
     private val dateFormat = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
-    private val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-
-    fun weightKgToDisplay(kg: Double, unit: WeightUnit): Double =
-        if (unit == WeightUnit.LB) Calculators.kgToLb(kg) else kg
-
-    fun displayToKg(value: Double, unit: WeightUnit): Double =
-        if (unit == WeightUnit.LB) Calculators.lbToKg(value) else value
 
     fun weight(kg: Double, unit: WeightUnit): String =
-        Calculators.formatWeight(weightKgToDisplay(kg, unit))
+        formatWeight(unit.kgToDisplay(kg))
 
     /** Aggregate volumes are shown as whole numbers in the display unit. */
     fun volume(kg: Double, unit: WeightUnit): String =
-        kotlin.math.round(weightKgToDisplay(kg, unit)).toLong().toString()
+        round(unit.kgToDisplay(kg)).toLong().toString()
 
-    fun unitLabel(unit: WeightUnit): String = if (unit == WeightUnit.LB) "lb" else "kg"
+    fun unitLabel(unit: WeightUnit): String = unit.label
 
     fun dateTime(millis: Long): String = dateTimeFormat.format(Date(millis))
     fun date(millis: Long): String = dateFormat.format(Date(millis))
-    fun time(millis: Long): String = timeFormat.format(Date(millis))
+    fun epochDate(epochDay: Long): String = date(epochDay * 86_400_000L)
 
-    fun duration(startedAt: Long, endedAt: Long?): String {
-        val end = endedAt ?: System.currentTimeMillis()
-        val totalSeconds = ((end - startedAt) / 1000).coerceAtLeast(0)
-        val minutes = totalSeconds / 60
-        val seconds = totalSeconds % 60
+    fun duration(startedAt: Long, endedAt: Long): String =
+        formatSeconds(((endedAt - startedAt) / 1000).coerceAtLeast(0))
+
+    fun durationSince(startedAt: Long): String =
+        duration(startedAt, System.currentTimeMillis())
+
+    fun clock(totalSeconds: Int): String = formatSeconds(totalSeconds.toLong())
+
+    fun rpe(rpe: Double): String = "%.1f".format(rpe)
+
+    fun equipment(raw: String): String = raw.replace('_', ' ')
+
+    fun supersetLabel(supersetId: Int): String = "Superset ${'A' + supersetId - 1}"
+
+    fun decimalFilter(input: String): String = input.filter { it.isDigit() || it == '.' }
+
+    private fun formatSeconds(totalSeconds: Long): String {
+        val s = totalSeconds.coerceAtLeast(0)
+        val minutes = s / 60
+        val seconds = s % 60
         val hours = minutes / 60
         return when {
             hours > 0 -> "%d:%02d:%02d".format(hours, minutes % 60, seconds)
@@ -42,9 +51,10 @@ object Format {
         }
     }
 
-    fun clock(totalSeconds: Int): String {
-        val m = totalSeconds / 60
-        val s = totalSeconds % 60
-        return "%d:%02d".format(m, s)
+    /** Format a weight trimming trailing zeros ("82.5", not "82.50"). */
+    private fun formatWeight(weight: Double): String {
+        val rounded = round(weight * 100) / 100
+        if (rounded == floor(rounded)) return rounded.toLong().toString()
+        return rounded.toString()
     }
 }

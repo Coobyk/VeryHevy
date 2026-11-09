@@ -27,11 +27,6 @@ class RoutineRepository(private val db: AppDatabase) {
         dao.update(r.routine.copy(name = name, updatedAt = now()))
     }
 
-    suspend fun updateNotes(id: Long, notes: String) {
-        val r = dao.byId(id) ?: return
-        dao.update(r.routine.copy(notes = notes, updatedAt = now()))
-    }
-
     suspend fun delete(id: Long) {
         val r = dao.byId(id) ?: return
         dao.delete(r.routine)
@@ -41,9 +36,7 @@ class RoutineRepository(private val db: AppDatabase) {
         val r = dao.byId(id) ?: return -1
         val newId = dao.insert(r.routine.copy(id = 0, name = "${r.routine.name} (copy)", createdAt = now(), updatedAt = now()))
         r.exercises.sortedBy { it.exercise.orderIndex }.forEach { e ->
-            val neId = dao.insertExercise(
-                e.exercise.copy(id = 0, routineId = newId)
-            )
+            val neId = dao.insertExercise(e.exercise.copy(id = 0, routineId = newId))
             dao.insertSets(e.sets.map { it.copy(id = 0, routineExerciseId = neId) })
         }
         return newId
@@ -51,9 +44,8 @@ class RoutineRepository(private val db: AppDatabase) {
 
     suspend fun addExercise(routineId: Long, exerciseId: String): Long {
         val r = dao.byId(routineId) ?: return -1
-        val order = r.exercises.size
         val reId = dao.insertExercise(
-            RoutineExerciseEntity(routineId = routineId, exerciseId = exerciseId, orderIndex = order)
+            RoutineExerciseEntity(routineId = routineId, exerciseId = exerciseId, orderIndex = r.exercises.size)
         )
         dao.insertSets(listOf(RoutineSetEntity(routineExerciseId = reId, setIndex = 0)))
         touch(routineId)
@@ -64,9 +56,12 @@ class RoutineRepository(private val db: AppDatabase) {
         val r = dao.byId(routineId) ?: return
         val target = r.exercises.firstOrNull { it.exercise.orderIndex == orderIndex } ?: return
         dao.deleteExercise(target.exercise)
-        r.exercises.filter { it.exercise.orderIndex > orderIndex }
-            .sortedBy { it.exercise.orderIndex }
-            .forEach { dao.updateExercise(it.exercise.copy(orderIndex = it.exercise.orderIndex - 1)) }
+        val shifts = PlanOps.afterRemoval(
+            r.exercises.map { it.exercise.orderIndex }, orderIndex
+        ).toMap()
+        r.exercises.forEach { e ->
+            shifts[e.exercise.orderIndex]?.let { dao.updateExercise(e.exercise.copy(orderIndex = it)) }
+        }
         touch(routineId)
     }
 
@@ -80,60 +75,53 @@ class RoutineRepository(private val db: AppDatabase) {
         touch(routineId)
     }
 
-    suspend fun updateExerciseNotes(reId: Long, notes: String) {
-        val e = dao.exerciseById(reId) ?: return
-        dao.updateExercise(e.copy(notes = notes))
-        touch(e.routineId)
-    }
-
     suspend fun setRestSeconds(reId: Long, seconds: Int?) {
         val e = dao.exerciseById(reId) ?: return
         dao.updateExercise(e.copy(restSeconds = seconds))
         touch(e.routineId)
     }
 
-    suspend fun setSuperset(reId: Long, supersetId: Int?) {
-        val e = dao.exerciseById(reId) ?: return
-        dao.updateExercise(e.copy(supersetId = supersetId))
-        touch(e.routineId)
-    }
-
     suspend fun addSet(reId: Long, template: RoutineSetEntity?) {
-        val existing = dao.setsFor(reId)
+        val spec = template.specOrEmpty()
         dao.insertSets(
             listOf(
                 RoutineSetEntity(
                     routineExerciseId = reId,
-                    setIndex = existing.size,
-                    weightKg = template?.weightKg ?: 0.0,
-                    reps = template?.reps ?: 0,
-                    rpe = template?.rpe,
-                    isWarmup = template?.isWarmup ?: false,
+                    setIndex = dao.setsFor(reId).size,
+                    weightKg = spec.weightKg,
+                    reps = spec.reps,
+                    rpe = spec.rpe,
+                    isWarmup = spec.isWarmup,
                 )
             )
         )
+        touchForExercise(reId)
     }
-
-    suspend fun updateSet(set: RoutineSetEntity) = dao.insertSets(listOf(set)).let { }
 
     suspend fun deleteSet(set: RoutineSetEntity) {
         dao.deleteSets(listOf(set))
-        val remaining = dao.setsFor(set.routineExerciseId).sortedBy { it.setIndex }
-        remaining.forEachIndexed { i, s ->
-            if (s.setIndex != i) dao.insertSets(listOf(s.copy(setIndex = i)))
+        val remaining = dao.setsFor(set.routineExerciseId)
+        val shifts = PlanOps.compacted(remaining.map { it.setIndex }).toMap()
+        val updated = remaining.mapNotNull { s ->
+            shifts[s.setIndex]?.let { s.copy(setIndex = it) }
         }
+        if (updated.isNotEmpty()) dao.insertSets(updated)
+        touchForExercise(set.routineExerciseId)
     }
 
     suspend fun updateSetValues(set: RoutineSetEntity, weightKg: Double, reps: Int) {
         dao.insertSets(listOf(set.copy(weightKg = weightKg, reps = reps)))
+        touchForExercise(set.routineExerciseId)
     }
 
     suspend fun setSetRpe(set: RoutineSetEntity, rpe: Double?) {
         dao.insertSets(listOf(set.copy(rpe = rpe)))
+        touchForExercise(set.routineExerciseId)
     }
 
     suspend fun toggleSetWarmup(set: RoutineSetEntity) {
         dao.insertSets(listOf(set.copy(isWarmup = !set.isWarmup)))
+        touchForExercise(set.routineExerciseId)
     }
 
     /** Copies the routine into a fresh in-progress workout and returns its id. */
@@ -170,8 +158,12 @@ class RoutineRepository(private val db: AppDatabase) {
     }
 
     private suspend fun touch(routineId: Long) {
-        val r = dao.byId(routineId) ?: return
+        val r = dao.byId(id = routineId) ?: return
         dao.update(r.routine.copy(updatedAt = now()))
+    }
+
+    private suspend fun touchForExercise(reId: Long) {
+        dao.exerciseById(reId)?.let { touch(it.routineId) }
     }
 
     private fun now(): Long = System.currentTimeMillis()

@@ -1,6 +1,6 @@
 package com.veryhevy.ui
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +17,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -95,19 +97,17 @@ fun LedgerCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
 
 /** A large tabular number with a muted label below it. */
 @Composable
-fun NumStat(value: String, label: String, modifier: Modifier = Modifier, align: TextAlign = TextAlign.Start) {
+fun NumStat(value: String, label: String, modifier: Modifier = Modifier) {
     Column(modifier) {
         Text(
             value,
             style = MaterialTheme.typography.displaySmall.numeric(),
-            textAlign = align,
             modifier = Modifier.fillMaxWidth(),
         )
         Text(
             label.uppercase(),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = align,
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -216,4 +216,80 @@ fun SetField(
                 ),
         )
     }
+}
+
+/** Inline "value label" pair for compact stat rows (history entries, workout detail). */
+@Composable
+fun InlineStat(value: String, label: String, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.Bottom) {
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.width(4.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** RPE choices shared by tracker and routine set rows. */
+val RPE_OPTIONS: List<Double?> = listOf(null, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0)
+
+/** Small header label used for set-table column titles. */
+@Composable
+fun TableLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        modifier = modifier,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/** The set-number / warmup "W" cell — shared by tracker and routine rows; tap toggles warmup. */
+@Composable
+fun WarmupCell(isWarmup: Boolean, label: String, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier.clickable(onClick = onToggle), contentAlignment = Alignment.Center) {
+        if (isWarmup) {
+            VhTag("W")
+        } else {
+            Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** Trailing list item that opens the exercise picker — shared by tracker and routine editor. */
+@Composable
+fun AddExerciseButton(onClick: () -> Unit) {
+    OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Text("Add exercise")
+    }
+}
+
+/** "Add set" button at the bottom of an exercise card — shared by tracker and routine editor. */
+@Composable
+fun AddSetButton(onClick: () -> Unit) {
+    FilledTonalButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Text("Add set")
+    }
+}
+
+/** Section shell for Settings: label + vertically stacked content. */
+@Composable
+fun SettingsSection(title: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionLabel(title)
+        content()
+    }
+}
+
+/** Small muted hint for an empty section (not a full-screen EmptyState). */
+@Composable
+fun EmptyHint(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        modifier = modifier,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }

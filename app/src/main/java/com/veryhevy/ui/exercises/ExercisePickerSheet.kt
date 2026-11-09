@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.veryhevy.data.db.ExerciseEntity
+import com.veryhevy.ui.Format
 import com.veryhevy.ui.LedgerCard
 import com.veryhevy.ui.VhDivider
 import com.veryhevy.ui.VhTag
@@ -90,7 +91,7 @@ fun ExercisePickerSheet(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
                                 VhTag(exercise.muscleGroup)
-                                VhTag(exercise.equipment.replace('_', ' '))
+                                VhTag(Format.equipment(exercise.equipment))
                             }
                         }
                     }
@@ -100,25 +101,3 @@ fun ExercisePickerSheet(
     }
 }
 
-@Composable
-fun ExerciseLibraryCard(exercise: ExerciseEntity) {
-    LedgerCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(18.dp)) {
-            Text(exercise.name, style = MaterialTheme.typography.titleMedium)
-            Row(
-                Modifier.padding(top = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                VhTag(exercise.muscleGroup)
-                VhTag(exercise.equipment.replace('_', ' '))
-            }
-            if (exercise.instructions.isNotBlank()) {
-                Text(
-                    exercise.instructions,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
-        }
-    }
-}

@@ -15,19 +15,12 @@ data class SetWithWorkout(
     @Embedded val set: SetEntity,
     val workoutId: Long,
     val workoutStartedAt: Long,
-    val workoutName: String,
 )
 
 @Dao
 interface ExerciseDao {
-    @Query("SELECT * FROM exercises ORDER BY name")
-    fun observeAll(): Flow<List<ExerciseEntity>>
-
     @Query("SELECT * FROM exercises WHERE name LIKE '%' || :query || '%' ORDER BY name LIMIT 50")
     fun search(query: String): Flow<List<ExerciseEntity>>
-
-    @Query("SELECT * FROM exercises WHERE id = :id")
-    suspend fun byId(id: String): ExerciseEntity?
 
     @Query("SELECT * FROM exercises ORDER BY name")
     suspend fun all(): List<ExerciseEntity>
@@ -40,9 +33,6 @@ interface ExerciseDao {
 
     @Upsert
     suspend fun upsert(exercise: ExerciseEntity)
-
-    @Query("DELETE FROM exercises WHERE id = :id AND isCustom = 1")
-    suspend fun deleteCustom(id: String)
 }
 
 @Dao
@@ -67,7 +57,7 @@ interface WorkoutDao {
 
     @Query(
         """
-        SELECT ws.*, we.workoutId, w.startedAt AS workoutStartedAt, w.name AS workoutName
+        SELECT ws.*, we.workoutId, w.startedAt AS workoutStartedAt
         FROM workout_sets ws
         JOIN workout_exercises we ON ws.workoutExerciseId = we.id
         JOIN workouts w ON we.workoutId = w.id
@@ -112,6 +102,9 @@ interface WorkoutDao {
 
     @Query("SELECT * FROM workout_sets WHERE workoutExerciseId = :workoutExerciseId ORDER BY setIndex")
     suspend fun setsFor(workoutExerciseId: Long): List<SetEntity>
+
+    @Query("DELETE FROM workouts")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -127,9 +120,6 @@ interface RoutineDao {
     @Transaction
     @Query("SELECT * FROM routines WHERE id = :id")
     fun observeById(id: Long): Flow<RoutineWithExercises?>
-
-    @Query("SELECT COUNT(*) FROM routines")
-    suspend fun count(): Int
 
     @Insert
     suspend fun insert(routine: RoutineEntity): Long
@@ -161,8 +151,8 @@ interface RoutineDao {
     @Delete
     suspend fun deleteSets(sets: List<RoutineSetEntity>)
 
-    @Query("DELETE FROM routine_sets WHERE routineExerciseId = :routineExerciseId")
-    suspend fun deleteSetsFor(routineExerciseId: Long)
+    @Query("DELETE FROM routines")
+    suspend fun deleteAll()
 }
 
 @Dao

@@ -1,9 +1,10 @@
 package com.veryhevy.domain
 
-import kotlin.math.floor
-import kotlin.math.roundToInt
-
 object Calculators {
+
+    /** Standard metric gym inventory used by the plate calculator. */
+    const val BAR_KG = 20.0
+    val PLATES_KG = listOf(25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25)
 
     /**
      * Estimated one-rep max using the Epley formula.
@@ -52,23 +53,9 @@ object Calculators {
         return barWeight + plates.sumOf { it * 2 }
     }
 
-    /** Format a weight in the given unit, trimming trailing zeros ("82.5", not "82.50"). */
-    fun formatWeight(weight: Double, decimals: Int = 2): String {
-        val scaled = Math.pow(10.0, decimals.toDouble())
-        val rounded = kotlin.math.round(weight * scaled) / scaled
-        if (rounded == floor(rounded)) return rounded.toLong().toString()
-        return rounded.toString()
-    }
-
     /** Convert kg to lb. */
     fun kgToLb(kg: Double): Double = kg * 2.20462262185
 
     /** Convert lb to kg. */
     fun lbToKg(lb: Double): Double = lb / 2.20462262185
-
-    /** Round a weight to the nearest increment (e.g. 2.5 kg plates). */
-    fun roundToIncrement(weight: Double, increment: Double): Double {
-        if (increment <= 0.0) return weight
-        return (kotlin.math.round(weight / increment) * increment * 100).roundToInt() / 100.0
-    }
 }

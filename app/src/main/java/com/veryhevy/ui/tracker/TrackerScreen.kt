@@ -16,6 +16,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -63,6 +64,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.veryhevy.data.RestSeconds
 import com.veryhevy.data.WeightUnit
 import com.veryhevy.data.db.SetEntity
 import com.veryhevy.data.db.WorkoutExerciseWithSets
@@ -70,6 +72,7 @@ import com.veryhevy.domain.Calculators
 import com.veryhevy.ui.EmptyState
 import com.veryhevy.ui.Format
 import com.veryhevy.ui.LedgerCard
+import com.veryhevy.ui.RPE_OPTIONS
 import com.veryhevy.ui.SetField
 import com.veryhevy.ui.VhDivider
 import com.veryhevy.ui.VhTag
@@ -150,14 +153,14 @@ fun TrackerScreen(vm: TrackerViewModel) {
             ) {
                 RestTimerBar(
                     stateFlow = vm.restTimer,
-                    onAddTime = { vm.addRestTime(15) },
+                    onAddTime = { vm.addRestTime() },
                     onSkip = { vm.skipRest() },
                 )
             }
         }
         if (showPicker) {
             ExercisePickerSheet(
-                searchFlow = vm.exerciseRepository::search,
+                searchFlow = vm::searchExercises,
                 onDismiss = { showPicker = false },
                 onPick = { vm.addExercise(it.id) },
             )
@@ -278,7 +281,7 @@ private fun ExerciseBlock(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         VhTag(item.exerciseDetails.muscleGroup)
-                        item.exercise.supersetId?.let { VhTag("Superset ${'A' + it - 1}", accent = true) }
+                        item.exercise.supersetId?.let { VhTag(Format.supersetLabel(it), accent = true) }
                     }
                 }
                 Box {
@@ -310,10 +313,10 @@ private fun ExerciseBlock(
                             onClick = { showMenu = false; showNotes = !showNotes },
                         )
                         DropdownMenuItem(
-                            text = { Text("Rest ${item.exercise.restSeconds ?: 90}s") },
+                            text = { Text("Rest ${item.exercise.restSeconds ?: RestSeconds.DEFAULT}s") },
                             onClick = {
                                 showMenu = false
-                                vm.setRestSeconds(item.exercise.id, (item.exercise.restSeconds ?: 90).let { if (it >= 240) 90 else it + 30 })
+                                vm.setRestSeconds(item.exercise.id, (item.exercise.restSeconds ?: RestSeconds.DEFAULT).let { if (it >= 240) 90 else it + 30 })
                             },
                         )
                         DropdownMenuItem(
@@ -405,13 +408,13 @@ private fun SetRow(
     onSetRpe: (Double?) -> Unit,
     onDelete: () -> Unit,
 ) {
-    var weightText by remember(set.id) { mutableStateOf(if (set.weightKg == 0.0) "" else Format.weight(set.weightKg, unit)) }
-    var repsText by remember(set.id) { mutableStateOf(if (set.reps == 0) "" else set.reps.toString()) }
+    var weightText by remember(set.id, unit) { mutableStateOf(if (set.weightKg == 0.0) "" else Format.weight(set.weightKg, unit)) }
+    var repsText by remember(set.id, unit) { mutableStateOf(if (set.reps == 0) "" else set.reps.toString()) }
     var showRpeMenu by remember { mutableStateOf(false) }
 
     fun commit() {
         val displayWeight = weightText.toDoubleOrNull() ?: 0.0
-        val kg = Format.displayToKg(displayWeight, unit)
+        val kg = unit.displayToKg(displayWeight)
         val reps = repsText.toIntOrNull() ?: 0
         if (kg != set.weightKg || reps != set.reps) onWeightReps(kg, reps)
     }
@@ -420,7 +423,7 @@ private fun SetRow(
         Modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(32.dp), contentAlignment = Alignment.CenterStart) {
+        Box(Modifier.width(32.dp).clickable { onToggleWarmup() }, contentAlignment = Alignment.CenterStart) {
             if (set.isWarmup) {
                 VhTag("W")
             } else {
@@ -441,7 +444,7 @@ private fun SetRow(
         )
         SetField(
             value = weightText,
-            onValueChange = { weightText = it.filter { c -> c.isDigit() || c == '.' } },
+            onValueChange = { weightText = Format.decimalFilter(it) },
             onCommit = ::commit,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.weight(1.15f).padding(horizontal = 4.dp),
@@ -456,16 +459,16 @@ private fun SetRow(
         Box(Modifier.weight(0.85f), contentAlignment = Alignment.Center) {
             TextButton(onClick = { showRpeMenu = true }, contentPadding = PaddingValues(0.dp)) {
                 Text(
-                    set.rpe?.let { "%.1f".format(it) } ?: "-",
+                    set.rpe?.let { Format.rpe(it) } ?: "-",
                     style = MaterialTheme.typography.bodyMedium.numeric(),
                     color = if (set.rpe != null) MaterialTheme.colorScheme.onSurface
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             DropdownMenu(expanded = showRpeMenu, onDismissRequest = { showRpeMenu = false }) {
-                listOf(null, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0).forEach { rpe ->
+                RPE_OPTIONS.forEach { rpe ->
                     DropdownMenuItem(
-                        text = { Text(rpe?.let { "%.1f".format(it) } ?: "None", style = MaterialTheme.typography.bodyMedium.numeric()) },
+                        text = { Text(rpe?.let { Format.rpe(it) } ?: "None", style = MaterialTheme.typography.bodyMedium.numeric()) },
                         onClick = {
                             showRpeMenu = false
                             onSetRpe(rpe)
@@ -551,7 +554,7 @@ fun RestTimerBar(stateFlow: kotlinx.coroutines.flow.StateFlow<RestTimerState>, o
                 )
             }
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = onAddTime) { Text("+15s") }
+            TextButton(onClick = onAddTime) { Text("+${RestSeconds.TIMER_ADD}s") }
             TextButton(onClick = onSkip) { Text("Skip") }
         }
         Spacer(Modifier.height(8.dp))
@@ -571,11 +574,11 @@ fun RestTimerBar(stateFlow: kotlinx.coroutines.flow.StateFlow<RestTimerState>, o
 @Composable
 private fun PlateCalculatorDialog(unit: WeightUnit, onDismiss: () -> Unit) {
     var targetText by remember { mutableStateOf("60") }
-    val barKg = 20.0
-    val platesKg = listOf(25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25)
+    val barKg = Calculators.BAR_KG
+    val platesKg = Calculators.PLATES_KG
 
     val displayTarget = targetText.toDoubleOrNull() ?: 0.0
-    val targetKg = Format.displayToKg(displayTarget, unit)
+    val targetKg = unit.displayToKg(displayTarget)
     val plates = Calculators.platesFor(targetKg, barKg, platesKg)
     val loadableKg = Calculators.closestLoadable(targetKg, barKg, platesKg)
 
@@ -586,7 +589,7 @@ private fun PlateCalculatorDialog(unit: WeightUnit, onDismiss: () -> Unit) {
             Column {
                 OutlinedTextField(
                     value = targetText,
-                    onValueChange = { targetText = it.filter { c -> c.isDigit() || c == '.' } },
+                    onValueChange = { targetText = Format.decimalFilter(it) },
                     label = { Text("Target weight (${Format.unitLabel(unit)})") },
                     singleLine = true,
                 )

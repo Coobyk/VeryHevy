@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
@@ -53,11 +54,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.veryhevy.data.RestSeconds
 import com.veryhevy.data.WeightUnit
 import com.veryhevy.data.db.RoutineSetEntity
 import com.veryhevy.ui.EmptyState
 import com.veryhevy.ui.Format
 import com.veryhevy.ui.LedgerCard
+import com.veryhevy.ui.RPE_OPTIONS
 import com.veryhevy.ui.SetField
 import com.veryhevy.ui.VhDivider
 import com.veryhevy.ui.VhTag
@@ -108,6 +111,14 @@ fun RoutinesListScreen(vm: RoutinesViewModel, onOpenRoutine: (Long) -> Unit) {
                                 Icon(
                                     Icons.Filled.ContentCopy,
                                     contentDescription = "Duplicate",
+                                    Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            IconButton(onClick = { vm.deleteRoutine(r.routine.id) }) {
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = "Delete",
                                     Modifier.size(18.dp),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -226,7 +237,7 @@ fun RoutineEditScreen(
 
     if (showPicker) {
         ExercisePickerSheet(
-            searchFlow = vm.exerciseRepository::search,
+            searchFlow = vm::searchExercises,
             onDismiss = { showPicker = false },
             onPick = { vm.addExercise(routineId, it.id) },
         )
@@ -270,13 +281,12 @@ private fun RoutineExerciseBlock(
                             onClick = { showMenu = false; vm.moveExercise(item.exercise.routineId, item.exercise.orderIndex, 1) },
                         )
                         DropdownMenuItem(
-                            text = { Text("Rest ${item.exercise.restSeconds ?: 90}s") },
+                            text = { Text("Rest ${item.exercise.restSeconds ?: RestSeconds.DEFAULT}s") },
                             onClick = {
                                 showMenu = false
                                 vm.updateRestSeconds(
                                     item.exercise.id,
-                                    item.exercise.routineId,
-                                    (item.exercise.restSeconds ?: 90).let { if (it >= 240) 90 else it + 30 },
+                                    RestSeconds.nextAfter(item.exercise.restSeconds ?: RestSeconds.DEFAULT),
                                 )
                             },
                         )
@@ -342,12 +352,12 @@ private fun RoutineSetRow(
     onWarmup: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    var weightText by remember(set.id) { mutableStateOf(if (set.weightKg == 0.0) "" else Format.weight(set.weightKg, unit)) }
-    var repsText by remember(set.id) { mutableStateOf(if (set.reps == 0) "" else set.reps.toString()) }
+    var weightText by remember(set.id, unit) { mutableStateOf(if (set.weightKg == 0.0) "" else Format.weight(set.weightKg, unit)) }
+    var repsText by remember(set.id, unit) { mutableStateOf(if (set.reps == 0) "" else set.reps.toString()) }
     var showRpeMenu by remember { mutableStateOf(false) }
 
     fun commit() {
-        val kg = Format.displayToKg(weightText.toDoubleOrNull() ?: 0.0, unit)
+        val kg = unit.displayToKg(weightText.toDoubleOrNull() ?: 0.0)
         val reps = repsText.toIntOrNull() ?: 0
         if (kg != set.weightKg || reps != set.reps) onWeightReps(kg, reps)
     }
@@ -366,7 +376,7 @@ private fun RoutineSetRow(
         }
         SetField(
             value = weightText,
-            onValueChange = { weightText = it.filter { c -> c.isDigit() || c == '.' }; commit() },
+            onValueChange = { weightText = Format.decimalFilter(it); commit() },
             onCommit = ::commit,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.weight(1.3f).padding(horizontal = 4.dp),
@@ -381,16 +391,16 @@ private fun RoutineSetRow(
         Box(Modifier.weight(0.9f), contentAlignment = Alignment.Center) {
             TextButton(onClick = { showRpeMenu = true }, contentPadding = PaddingValues(0.dp)) {
                 Text(
-                    set.rpe?.let { "%.1f".format(it) } ?: "-",
+                    set.rpe?.let { Format.rpe(it) } ?: "-",
                     style = MaterialTheme.typography.bodyMedium.numeric(),
                     color = if (set.rpe != null) MaterialTheme.colorScheme.onSurface
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             DropdownMenu(expanded = showRpeMenu, onDismissRequest = { showRpeMenu = false }) {
-                listOf(null, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0).forEach { rpe ->
+                RPE_OPTIONS.forEach { rpe ->
                     DropdownMenuItem(
-                        text = { Text(rpe?.let { "%.1f".format(it) } ?: "None", style = MaterialTheme.typography.bodyMedium.numeric()) },
+                        text = { Text(rpe?.let { Format.rpe(it) } ?: "None", style = MaterialTheme.typography.bodyMedium.numeric()) },
                         onClick = { showRpeMenu = false; onRpe(rpe) },
                     )
                 }

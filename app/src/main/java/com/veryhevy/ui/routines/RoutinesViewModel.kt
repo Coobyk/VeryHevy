@@ -1,39 +1,46 @@
+@file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+
 package com.veryhevy.ui.routines
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.veryhevy.VeryHevyApp
-import com.veryhevy.data.RoutineRepository
 import com.veryhevy.data.WeightUnit
+import com.veryhevy.data.db.ExerciseEntity
 import com.veryhevy.data.db.RoutineSetEntity
 import com.veryhevy.data.db.RoutineWithExercises
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class RoutinesViewModel(app: Application) : AndroidViewModel(app) {
 
-    val repo = RoutineRepository((app as VeryHevyApp).database)
-    val exerciseRepository = (app as VeryHevyApp).exerciseRepository
+    private val container = app as VeryHevyApp
+    private val repo = container.routineRepository
+    private val exerciseRepo = container.exerciseRepository
 
-    val unit: StateFlow<WeightUnit> =
-        (app as VeryHevyApp).settingsRepository.settings
-            .map { it.unit }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, WeightUnit.KG)
+    val unit: StateFlow<WeightUnit> = container.settingsRepository.settings
+        .map { it.unit }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, WeightUnit.KG)
 
     val routines: StateFlow<List<RoutineWithExercises>> =
         repo.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _current = MutableStateFlow<RoutineWithExercises?>(null)
-    val current: StateFlow<RoutineWithExercises?> = _current.asStateFlow()
+    /** The routine open in the editor; observed, so DB writes refresh it automatically. */
+    private val openRoutineId = MutableStateFlow<Long?>(null)
+    val current: StateFlow<RoutineWithExercises?> = openRoutineId
+        .flatMapLatest { id -> if (id == null) flowOf(null) else repo.observeById(id) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     fun loadRoutine(id: Long) {
-        viewModelScope.launch { _current.value = repo.byId(id) }
+        openRoutineId.value = id
     }
 
     fun createRoutine(name: String, onCreated: (Long) -> Unit) {
@@ -49,42 +56,23 @@ class RoutinesViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun renameRoutine(id: Long, name: String) {
-        viewModelScope.launch {
-            repo.rename(id, name)
-            _current.value = repo.byId(id)
-        }
-    }
-
-    fun updateNotes(id: Long, notes: String) {
-        viewModelScope.launch { repo.updateNotes(id, notes) }
+        viewModelScope.launch { repo.rename(id, name) }
     }
 
     fun addExercise(routineId: Long, exerciseId: String) {
-        viewModelScope.launch {
-            repo.addExercise(routineId, exerciseId)
-            _current.value = repo.byId(routineId)
-        }
+        viewModelScope.launch { repo.addExercise(routineId, exerciseId) }
     }
 
     fun removeExercise(routineId: Long, orderIndex: Int) {
-        viewModelScope.launch {
-            repo.removeExercise(routineId, orderIndex)
-            _current.value = repo.byId(routineId)
-        }
+        viewModelScope.launch { repo.removeExercise(routineId, orderIndex) }
     }
 
     fun moveExercise(routineId: Long, orderIndex: Int, direction: Int) {
-        viewModelScope.launch {
-            repo.moveExercise(routineId, orderIndex, direction)
-            _current.value = repo.byId(routineId)
-        }
+        viewModelScope.launch { repo.moveExercise(routineId, orderIndex, direction) }
     }
 
-    fun updateRestSeconds(reId: Long, routineId: Long, seconds: Int) {
-        viewModelScope.launch {
-            repo.setRestSeconds(reId, seconds)
-            _current.value = repo.byId(routineId)
-        }
+    fun updateRestSeconds(reId: Long, seconds: Int) {
+        viewModelScope.launch { repo.setRestSeconds(reId, seconds) }
     }
 
     fun addSet(reId: Long, template: RoutineSetEntity?) {
@@ -106,6 +94,8 @@ class RoutinesViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleWarmup(set: RoutineSetEntity) {
         viewModelScope.launch { repo.toggleSetWarmup(set) }
     }
+
+    fun searchExercises(query: String): Flow<List<ExerciseEntity>> = exerciseRepo.search(query)
 
     fun startWorkout(routineId: Long, onStarted: (Long) -> Unit) {
         viewModelScope.launch {

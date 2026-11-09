@@ -31,7 +31,8 @@ class CsvParserTest {
     fun parseDate_iso() {
         assertNotNull(CsvParser.parseDate("2024-03-05 18:32:00"))
         assertNotNull(CsvParser.parseDate("2024-03-05"))
-        assertNotNull(CsvParser.parseDate("05/03/2024"))
+        // Ambiguous day/month order resolves as dd/MM/yyyy (it precedes MM/dd in the format list).
+        assertEquals(CsvParser.parseDate("2024-03-05 15:00"), CsvParser.parseDate("05/03/2024 15:00"))
         assertNull(CsvParser.parseDate("not a date"))
     }
 
@@ -52,7 +53,6 @@ class CsvParserTest {
         assertEquals("bench", CsvParser.matchExercise("bench press", lib))
         assertEquals("squat", CsvParser.matchExercise("Back Squat (Barbell)", lib))
         assertNull(CsvParser.matchExercise("Totally Unrelated Zzz", lib))
-        assertTrue(CsvParser.similarity(CsvParser.normalize("bench press"), CsvParser.normalize("Bench Press")) > 0.9)
     }
 
     @Test

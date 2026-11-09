@@ -91,9 +91,9 @@ fun WorkoutDetailScreen(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
-                    DetailStat(Format.dateTime(w.workout.startedAt), "date")
-                    DetailStat(Format.duration(w.workout.startedAt, w.workout.endedAt), "duration")
-                    DetailStat("${Format.volume(doneVolumeKg(w), unit)} ${Format.unitLabel(unit)}", "volume")
+                    InlineStat(Format.dateTime(w.workout.startedAt), "date")
+                    InlineStat(w.workout.endedAt?.let { Format.duration(w.workout.startedAt, it) } ?: Format.durationSince(w.workout.startedAt), "duration")
+                    InlineStat("${Format.volume(doneVolumeKg(w), unit)} ${Format.unitLabel(unit)}", "volume")
                 }
                 Spacer(Modifier.height(4.dp))
             }
@@ -107,7 +107,7 @@ fun WorkoutDetailScreen(
                                 modifier = Modifier.weight(1f),
                             )
                             item.exercise.supersetId?.let {
-                                VhTag("Superset ${'A' + it - 1}", accent = true)
+                                VhTag(Format.supersetLabel(it), accent = true)
                             }
                         }
                         Spacer(Modifier.height(6.dp))
@@ -133,7 +133,7 @@ fun WorkoutDetailScreen(
                                 )
                                 set.rpe?.let {
                                     Text(
-                                        "RPE ${"%.1f".format(it)}",
+                                        "RPE ${Format.rpe(it)}",
                                         style = MaterialTheme.typography.bodySmall.numeric(),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -166,7 +166,7 @@ fun WorkoutDetailScreen(
 }
 
 @Composable
-private fun DetailStat(value: String, label: String) {
+private fun InlineStat(value: String, label: String) {
     Column {
         Text(value, style = MaterialTheme.typography.bodyMedium.numeric(), fontWeight = FontWeight.Medium)
         Text(

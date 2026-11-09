@@ -49,11 +49,7 @@ fun HistoryScreen(
     val entries by vm.entries.collectAsStateWithLifecycle()
     val unit by vm.unit.collectAsStateWithLifecycle()
 
-    val workoutDays = remember(entries) {
-        entries.map {
-            Instant.ofEpochMilli(it.startedAt).atZone(ZoneId.systemDefault()).toLocalDate()
-        }.toSet()
-    }
+    val workoutDays by vm.workoutDays.collectAsStateWithLifecycle()
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -178,17 +174,17 @@ private fun HistoryRow(entry: HistoryEntry, unit: WeightUnit, onClick: () -> Uni
             }
             Spacer(Modifier.height(6.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                MiniStat("${entry.exerciseCount}", "exercises")
-                MiniStat("${entry.setCount}", "sets")
-                MiniStat("${Format.volume(entry.totalVolumeKg, unit)} ${Format.unitLabel(unit)}", "volume")
-                MiniStat(Format.duration(entry.startedAt, entry.endedAt), "time")
+                InlineStat("${entry.exerciseCount}", "exercises")
+                InlineStat("${entry.setCount}", "sets")
+                InlineStat("${Format.volume(entry.totalVolumeKg, unit)} ${Format.unitLabel(unit)}", "volume")
+                InlineStat(Format.duration(entry.startedAt, entry.endedAt), "time")
             }
         }
     }
 }
 
 @Composable
-private fun MiniStat(value: String, label: String) {
+private fun InlineStat(value: String, label: String) {
     Row(verticalAlignment = Alignment.Bottom) {
         Text(value, style = MaterialTheme.typography.bodyMedium.numeric(), fontWeight = FontWeight.Medium)
         Spacer(Modifier.width(4.dp))

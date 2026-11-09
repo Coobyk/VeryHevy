@@ -32,17 +32,9 @@ data class PersonalRecord(
     val achievedAt: Long,
 )
 
-@Immutable
-data class WorkoutTotals(
-    val workoutId: Long,
-    val startedAt: Long,
-    val volumeKg: Double,
-    val setCount: Int,
-)
-
 object Analytics {
 
-    /** e1RM across all sets per exercise, keeping the date it was achieved. */
+    /** e1RM across all sets per exercise; every record field comes from the same best set. */
     fun personalRecords(sets: List<SetRecord>): List<PersonalRecord> =
         sets.filter { !it.isWarmup && it.reps > 0 }
             .groupBy { it.exerciseId }
@@ -51,26 +43,28 @@ object Analytics {
                 PersonalRecord(
                     exerciseId = exerciseId,
                     bestOneRepMaxKg = Calculators.oneRepMax(best.weightKg, best.reps),
-                    bestWeightKg = list.maxOf { it.weightKg },
+                    bestWeightKg = best.weightKg,
                     bestReps = best.reps,
                     achievedAt = best.startedAt,
                 )
             }
             .sortedByDescending { it.bestOneRepMaxKg }
 
+    private fun weekStartOf(date: LocalDate): LocalDate =
+        date.minusDays((date.dayOfWeek.value % 7).toLong())
+
     fun weeklyVolume(sets: List<SetRecord>, weeks: Int = 8, zone: ZoneId = ZoneId.systemDefault()): List<WeeklyVolume> {
-        val today = LocalDate.now(zone)
-        val currentWeekStart = today.minusDays(((today.dayOfWeek.value % 7).toLong()))
+        val currentWeekStart = weekStartOf(LocalDate.now(zone))
         return (weeks - 1 downTo 0).map { back ->
             val weekStart = currentWeekStart.minusWeeks(back.toLong())
             val weekEndExclusive = weekStart.plusWeeks(1)
             val weekSets = sets.filter {
                 val d = Instant.ofEpochMilli(it.startedAt).atZone(zone).toLocalDate()
                 d >= weekStart && d < weekEndExclusive
-            }
+            }.filter { !it.isWarmup }
             WeeklyVolume(
                 weekStart = weekStart,
-                volumeKg = weekSets.filter { !it.isWarmup }.sumOf { Calculators.setVolume(it.weightKg, it.reps) },
+                volumeKg = weekSets.sumOf { Calculators.setVolume(it.weightKg, it.reps) },
                 workoutCount = weekSets.map { it.workoutId }.distinct().size,
             )
         }
@@ -82,29 +76,18 @@ object Analytics {
             .map { (muscle, list) -> MuscleVolume(muscle, list.sumOf { Calculators.setVolume(it.weightKg, it.reps) }) }
             .sortedByDescending { it.volumeKg }
 
-    fun totals(sets: List<SetRecord>): List<WorkoutTotals> =
-        sets.groupBy { it.workoutId }.map { (id, list) ->
-            WorkoutTotals(
-                workoutId = id,
-                startedAt = list.first().startedAt,
-                volumeKg = list.filter { !it.isWarmup }.sumOf { Calculators.setVolume(it.weightKg, it.reps) },
-                setCount = list.size,
-            )
-        }
-
-    /** Number of consecutive 7-day windows (ending today or yesterday) containing at least one workout. */
+    /** Consecutive weeks with at least one workout, counting back from this week
+     *  (or last week if the current one hasn't seen a session yet). */
     fun weeklyStreak(sets: List<SetRecord>, zone: ZoneId = ZoneId.systemDefault()): Int {
-        val weeks = weeklyVolume(sets, weeks = 52, zone = zone).sortedByDescending { it.weekStart }
+        val weeksWithWorkouts = sets
+            .map { weekStartOf(Instant.ofEpochMilli(it.startedAt).atZone(zone).toLocalDate()) }
+            .toSet()
+        var week = weekStartOf(LocalDate.now(zone))
+        if (week !in weeksWithWorkouts) week = week.minusWeeks(1)
         var streak = 0
-        var allowCurrentEmpty = true
-        for (week in weeks) {
-            if (week.workoutCount > 0) {
-                streak++
-            } else if (allowCurrentEmpty) {
-                allowCurrentEmpty = false
-            } else {
-                break
-            }
+        while (week in weeksWithWorkouts) {
+            streak++
+            week = week.minusWeeks(1)
         }
         return streak
     }

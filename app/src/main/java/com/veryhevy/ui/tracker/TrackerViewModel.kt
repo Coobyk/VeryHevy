@@ -1,23 +1,18 @@
 package com.veryhevy.ui.tracker
 
 import android.app.Application
-import android.content.Context
-import android.media.AudioManager
-import android.media.ToneGenerator
-import android.os.Build
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.veryhevy.VeryHevyApp
+import com.veryhevy.data.RestSeconds
 import com.veryhevy.data.WeightUnit
+import com.veryhevy.data.db.ExerciseEntity
 import com.veryhevy.data.db.SetEntity
-import com.veryhevy.data.db.WorkoutEntity
 import com.veryhevy.data.db.WorkoutWithExercises
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -39,8 +34,8 @@ data class RestTimerState(
 class TrackerViewModel(app: Application) : AndroidViewModel(app) {
 
     private val container = app as VeryHevyApp
-    private val workoutRepo = com.veryhevy.data.WorkoutRepository(container.database)
-    val exerciseRepository = container.exerciseRepository
+    private val workoutRepo = container.workoutRepository
+    private val exerciseRepo = container.exerciseRepository
     private val settings = container.settingsRepository
 
     val unit: StateFlow<WeightUnit> = settings.settings
@@ -53,17 +48,20 @@ class TrackerViewModel(app: Application) : AndroidViewModel(app) {
     private val _restTimer = MutableStateFlow(RestTimerState())
     val restTimer: StateFlow<RestTimerState> = _restTimer.asStateFlow()
 
-    private val _previousSets = MutableStateFlow<Map<String, PreviousSet>>(emptyMap())
-    val previousSets: StateFlow<Map<String, PreviousSet>> = _previousSets.asStateFlow()
+    /** exerciseId → last-session heaviest set; null value means "none found". */
+    private val _previousSets = MutableStateFlow<Map<String, PreviousSet?>>(emptyMap())
+    val previousSets: StateFlow<Map<String, PreviousSet?>> = _previousSets.asStateFlow()
 
     private var restJob: Job? = null
-    private var defaultRestSeconds = 90
+    private var defaultRestSeconds = RestSeconds.DEFAULT
 
     init {
         viewModelScope.launch {
             settings.settings.collect { defaultRestSeconds = it.defaultRestSeconds }
         }
     }
+
+    fun searchExercises(query: String): Flow<List<ExerciseEntity>> = exerciseRepo.search(query)
 
     /** The sets done for this exercise in the most recent prior workout. */
     fun loadPrevious(exerciseId: String) {
@@ -72,13 +70,12 @@ class TrackerViewModel(app: Application) : AndroidViewModel(app) {
             val currentWorkoutId = workout.value?.workout?.id
             val history = workoutRepo.setHistoryForExercise(exerciseId)
                 .filter { it.workoutId != currentWorkoutId }
-            val best = history.maxByOrNull { it.workoutStartedAt } ?: run {
-                _previousSets.value = _previousSets.value + (exerciseId to PreviousSet(0.0, 0))
-                return@launch
+            val best = history.maxByOrNull { it.workoutStartedAt }
+            val heaviest = best?.let { b ->
+                history.filter { it.workoutId == b.workoutId }.maxByOrNull { it.set.weightKg }
             }
-            val heaviest = history.filter { it.workoutId == best.workoutId }
-                .maxByOrNull { it.set.weightKg }
-            _previousSets.value = _previousSets.value + (exerciseId to PreviousSet(heaviest?.set?.weightKg ?: 0.0, heaviest?.set?.reps ?: 0))
+            _previousSets.value = _previousSets.value +
+                (exerciseId to heaviest?.let { PreviousSet(it.set.weightKg, it.set.reps) })
         }
     }
 
@@ -135,7 +132,7 @@ class TrackerViewModel(app: Application) : AndroidViewModel(app) {
                 ?: sorted.firstOrNull { it.exercise.orderIndex == orderIndex + 1 }
                 ?: return@launch
             val newId = when {
-                current.exercise.supersetId != null -> null // leave superset
+                current.exercise.supersetId != null -> null
                 neighbor.exercise.supersetId != null -> neighbor.exercise.supersetId
                 else -> (sorted.maxOfOrNull { it.exercise.supersetId ?: 0 } ?: 0) + 1
             }
@@ -194,11 +191,11 @@ class TrackerViewModel(app: Application) : AndroidViewModel(app) {
                 _restTimer.value = _restTimer.value.copy(remainingSeconds = _restTimer.value.remainingSeconds - 1)
             }
             _restTimer.value = _restTimer.value.copy(isActive = false)
-            notifyRestDone()
+            RestAlarm.notify(getApplication())
         }
     }
 
-    fun addRestTime(seconds: Int) {
+    fun addRestTime(seconds: Int = RestSeconds.TIMER_ADD) {
         if (!_restTimer.value.isActive) return
         _restTimer.value = _restTimer.value.copy(
             remainingSeconds = _restTimer.value.remainingSeconds + seconds,
@@ -209,23 +206,5 @@ class TrackerViewModel(app: Application) : AndroidViewModel(app) {
     fun skipRest() {
         restJob?.cancel()
         _restTimer.value = RestTimerState()
-    }
-
-    private fun notifyRestDone() {
-        val context = getApplication<Application>()
-        try {
-            val vibrator: Vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
-                vm.defaultVibrator
-            } else {
-                @Suppress("DEPRECATION")
-                context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-            }
-            vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 300, 150, 300), -1))
-            val tone = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
-            tone.startTone(ToneGenerator.TONE_PROP_BEEP2, 300)
-        } catch (_: Exception) {
-            // Haptics/sound are best effort.
-        }
     }
 }

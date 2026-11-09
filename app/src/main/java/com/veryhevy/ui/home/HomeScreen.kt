@@ -49,8 +49,7 @@ fun HomeScreen(vm: HomeViewModel) {
     val unit by vm.unit.collectAsStateWithLifecycle()
     val weekly by vm.weeklyVolume.collectAsStateWithLifecycle()
     val muscles by vm.muscleVolume.collectAsStateWithLifecycle()
-    val records by vm.personalRecords.collectAsStateWithLifecycle()
-    val names by vm.exerciseNames.collectAsStateWithLifecycle()
+    val records by vm.recordRows.collectAsStateWithLifecycle()
     val workoutCount by vm.workoutCount.collectAsStateWithLifecycle()
     val streak by vm.streak.collectAsStateWithLifecycle()
     val measurements by vm.measurements.collectAsStateWithLifecycle()
@@ -89,8 +88,8 @@ fun HomeScreen(vm: HomeViewModel) {
                 )
             }
         }
-        items(records, key = { it.exerciseId }) { pr ->
-            PRRow(pr, names[pr.exerciseId] ?: pr.exerciseId, unit)
+        items(records, key = { it.record.exerciseId }) { row ->
+            PRRow(row, unit)
         }
         item { Spacer(Modifier.height(16.dp)) }
     }
@@ -220,14 +219,14 @@ private fun MeasurementsSection(
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    Format.date(latest.dateEpochDay * 86_400_000L),
+                    Format.epochDate(latest.dateEpochDay),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 4.dp),
                 )
             }
             Spacer(Modifier.height(12.dp))
-            MiniWeightChart(measurements.takeLast(12).map { Format.weightKgToDisplay(it.weightKg, unit) })
+            MiniWeightChart(measurements.take(12).reversed().map { unit.kgToDisplay(it.weightKg) })
             Spacer(Modifier.height(8.dp))
             measurements.take(5).forEach { m ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 3.dp)) {
@@ -236,7 +235,7 @@ private fun MeasurementsSection(
                         style = MaterialTheme.typography.bodySmall.numeric(),
                     )
                     Text(
-                        "  ·  ${Format.date(m.dateEpochDay * 86_400_000L)}",
+                        "  ·  ${Format.epochDate(m.dateEpochDay)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f),
@@ -268,7 +267,7 @@ private fun MeasurementsSection(
             confirmButton = {
                 TextButton(onClick = {
                     input.toDoubleOrNull()?.let { v ->
-                        onAdd(Format.displayToKg(v, unit))
+                        onAdd(unit.displayToKg(v))
                         input = ""
                         showAdd = false
                     }
@@ -307,25 +306,25 @@ private fun MiniWeightChart(values: List<Double>) {
 }
 
 @Composable
-private fun PRRow(pr: com.veryhevy.domain.PersonalRecord, exerciseName: String, unit: WeightUnit) {
+private fun PRRow(row: RecordRow, unit: WeightUnit) {
     LedgerCard(Modifier.padding(top = 10.dp).fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(exerciseName, style = MaterialTheme.typography.titleSmall)
+                Text(row.exerciseName, style = MaterialTheme.typography.titleSmall)
                 Text(
-                    Format.date(pr.achievedAt),
+                    Format.date(row.record.achievedAt),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    Format.weight(pr.bestOneRepMaxKg, unit),
+                    Format.weight(row.record.bestOneRepMaxKg, unit),
                     style = MaterialTheme.typography.titleLarge.numeric(),
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Text(
-                    "est. 1RM · ${Format.weight(pr.bestWeightKg, unit)} ${Format.unitLabel(unit)} × ${pr.bestReps}",
+                    "est. 1RM · ${Format.weight(row.record.bestWeightKg, unit)} ${Format.unitLabel(unit)} × ${row.record.bestReps}",
                     style = MaterialTheme.typography.labelSmall.numeric(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

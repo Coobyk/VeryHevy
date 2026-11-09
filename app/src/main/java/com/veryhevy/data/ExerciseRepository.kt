@@ -11,9 +11,7 @@ class ExerciseRepository(
     private val db: AppDatabase,
     private val context: Context,
 ) {
-    fun observeAll() = db.exerciseDao().observeAll()
     fun search(query: String) = db.exerciseDao().search(query)
-    suspend fun byId(id: String) = db.exerciseDao().byId(id)
     suspend fun all(): List<ExerciseEntity> = db.exerciseDao().all()
 
     suspend fun addCustom(name: String, muscleGroup: String, equipment: String) {

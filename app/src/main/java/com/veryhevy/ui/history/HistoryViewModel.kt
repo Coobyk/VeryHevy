@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 @Immutable
 data class HistoryEntry(
@@ -28,12 +31,12 @@ data class HistoryEntry(
 
 class HistoryViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val repo = com.veryhevy.data.WorkoutRepository((app as VeryHevyApp).database)
+    private val container = app as VeryHevyApp
+    private val repo = container.workoutRepository
 
-    val unit: StateFlow<WeightUnit> =
-        (app as VeryHevyApp).settingsRepository.settings
-            .map { it.unit }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, WeightUnit.KG)
+    val unit: StateFlow<WeightUnit> = container.settingsRepository.settings
+        .map { it.unit }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, WeightUnit.KG)
 
     val entries: StateFlow<List<HistoryEntry>> = repo.observeFinished()
         .map { list ->
@@ -44,7 +47,8 @@ class HistoryViewModel(app: Application) : AndroidViewModel(app) {
                     name = w.workout.name,
                     startedAt = w.workout.startedAt,
                     endedAt = w.workout.endedAt ?: w.workout.startedAt,
-                    totalVolumeKg = doneSets.sumOf { it.weightKg * it.reps },
+                    totalVolumeKg = doneSets.filter { !it.isWarmup }
+                        .sumOf { it.weightKg * it.reps },
                     exerciseCount = w.exercises.size,
                     setCount = doneSets.size,
                 )
@@ -52,6 +56,12 @@ class HistoryViewModel(app: Application) : AndroidViewModel(app) {
         }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val workoutDays: StateFlow<Set<LocalDate>> = entries
+        .map { list ->
+            list.map { Instant.ofEpochMilli(it.startedAt).atZone(ZoneId.systemDefault()).toLocalDate() }.toSet()
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     suspend fun workout(id: Long): WorkoutWithExercises? = repo.byId(id)
 

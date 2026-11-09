@@ -4,6 +4,7 @@ package com.veryhevy.data
 
 import com.veryhevy.data.db.AppDatabase
 import com.veryhevy.data.db.SetEntity
+import com.veryhevy.data.db.SetWithWorkout
 import com.veryhevy.data.db.WorkoutEntity
 import com.veryhevy.data.db.WorkoutExerciseEntity
 import com.veryhevy.data.db.WorkoutWithExercises
@@ -15,17 +16,15 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     private val dao get() = db.workoutDao()
 
-    fun observeInProgress(): Flow<WorkoutEntity?> = dao.observeInProgress()
-
     fun observeInProgressWithDetails(): Flow<WorkoutWithExercises?> =
         dao.observeInProgress().flatMapLatest { w ->
             if (w == null) flowOf(null) else dao.observeWithExercises(w.id)
         }
+
     fun observeFinished(): Flow<List<WorkoutWithExercises>> = dao.observeFinished()
-    fun observeById(id: Long): Flow<WorkoutWithExercises?> = dao.observeWithExercises(id)
     suspend fun byId(id: Long): WorkoutWithExercises? = dao.withExercises(id)
-    suspend fun inProgress(): WorkoutEntity? = dao.inProgress()
-    suspend fun setHistoryForExercise(exerciseId: String) = dao.setHistoryForExercise(exerciseId)
+    suspend fun setHistoryForExercise(exerciseId: String): List<SetWithWorkout> =
+        dao.setHistoryForExercise(exerciseId)
 
     suspend fun startWorkout(name: String): Long {
         val existing = dao.inProgress()
@@ -48,16 +47,10 @@ class WorkoutRepository(private val db: AppDatabase) {
         dao.update(w.workout.copy(name = name))
     }
 
-    suspend fun updateNotes(id: Long, notes: String) {
-        val w = dao.withExercises(id) ?: return
-        dao.update(w.workout.copy(notes = notes))
-    }
-
     suspend fun addExercise(workoutId: Long, exerciseId: String): Long {
         val w = dao.withExercises(workoutId) ?: return -1
-        val order = w.exercises.size
         val weId = dao.insertExercise(
-            WorkoutExerciseEntity(workoutId = workoutId, exerciseId = exerciseId, orderIndex = order)
+            WorkoutExerciseEntity(workoutId = workoutId, exerciseId = exerciseId, orderIndex = w.exercises.size)
         )
         // A fresh exercise starts with one empty working set, matching what a lifter expects.
         dao.insertSets(listOf(SetEntity(workoutExerciseId = weId, setIndex = 0)))
@@ -68,10 +61,12 @@ class WorkoutRepository(private val db: AppDatabase) {
         val w = dao.withExercises(workoutId) ?: return
         val toRemove = w.exercises.firstOrNull { it.exercise.orderIndex == orderIndex } ?: return
         dao.deleteExercise(toRemove.exercise)
-        // Re-index the remaining exercises.
-        w.exercises.filter { it.exercise.orderIndex > orderIndex }
-            .sortedBy { it.exercise.orderIndex }
-            .forEach { dao.updateExercise(it.exercise.copy(orderIndex = it.exercise.orderIndex - 1)) }
+        val shifts = PlanOps.afterRemoval(
+            w.exercises.map { it.exercise.orderIndex }, orderIndex
+        ).toMap()
+        w.exercises.forEach { e ->
+            shifts[e.exercise.orderIndex]?.let { dao.updateExercise(e.exercise.copy(orderIndex = it)) }
+        }
     }
 
     suspend fun moveExercise(workoutId: Long, orderIndex: Int, direction: Int) {
@@ -84,13 +79,13 @@ class WorkoutRepository(private val db: AppDatabase) {
     }
 
     suspend fun updateExerciseNotes(weId: Long, notes: String) {
-        val w = allWorkoutExercise(weId) ?: return
-        dao.updateExercise(w.copy(notes = notes))
+        val e = dao.exerciseById(weId) ?: return
+        dao.updateExercise(e.copy(notes = notes))
     }
 
     suspend fun updateRestSeconds(weId: Long, restSeconds: Int?) {
-        val w = allWorkoutExercise(weId) ?: return
-        dao.updateExercise(w.copy(restSeconds = restSeconds))
+        val e = dao.exerciseById(weId) ?: return
+        dao.updateExercise(e.copy(restSeconds = restSeconds))
     }
 
     suspend fun setSuperset(workoutId: Long, orderIndex: Int, supersetId: Int?) {
@@ -99,18 +94,20 @@ class WorkoutRepository(private val db: AppDatabase) {
         dao.updateExercise(e.exercise.copy(supersetId = supersetId))
     }
 
-    suspend fun addSet(weId: Long, template: SetEntity? = null): Long {
-        val existing = dao.setsFor(weId)
-        val next = SetEntity(
-            workoutExerciseId = weId,
-            setIndex = existing.size,
-            weightKg = template?.weightKg ?: 0.0,
-            reps = template?.reps ?: 0,
-            rpe = template?.rpe,
-            isWarmup = template?.isWarmup ?: false,
+    suspend fun addSet(weId: Long, template: SetEntity? = null) {
+        val spec = template.specOrEmpty()
+        dao.insertSets(
+            listOf(
+                SetEntity(
+                    workoutExerciseId = weId,
+                    setIndex = dao.setsFor(weId).size,
+                    weightKg = spec.weightKg,
+                    reps = spec.reps,
+                    rpe = spec.rpe,
+                    isWarmup = spec.isWarmup,
+                )
+            )
         )
-        dao.insertSets(listOf(next))
-        return existing.size.toLong()
     }
 
     suspend fun updateSet(set: SetEntity) = dao.upsertSet(set)
@@ -120,12 +117,10 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     suspend fun deleteSet(set: SetEntity) {
         dao.deleteSet(set)
-        val remaining = dao.setsFor(set.workoutExerciseId).sortedBy { it.setIndex }
-        remaining.forEachIndexed { i, s ->
-            if (s.setIndex != i) dao.upsertSet(s.copy(setIndex = i))
+        val remaining = dao.setsFor(set.workoutExerciseId)
+        val shifts = PlanOps.compacted(remaining.map { it.setIndex }).toMap()
+        remaining.forEach { s ->
+            shifts[s.setIndex]?.let { dao.upsertSet(s.copy(setIndex = it)) }
         }
     }
-
-    private suspend fun allWorkoutExercise(weId: Long): WorkoutExerciseEntity? =
-        dao.exerciseById(weId)
 }
